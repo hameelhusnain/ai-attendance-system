@@ -77,43 +77,6 @@ class _LoginScreenState extends State<LoginScreen> {
               label: _loading ? 'Signing in...' : 'Sign In',
               onPressed: _loading ? null : _submit,
             ),
-            AppSpacing.gap16,
-            Row(
-              children: [
-                const Expanded(child: Divider()),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'OR',
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelMedium
-                        ?.copyWith(color: const Color(0xFF97A3B6)),
-                  ),
-                ),
-                const Expanded(child: Divider()),
-              ],
-            ),
-            AppSpacing.gap16,
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.g_mobiledata),
-                label: const Text('Continue with Google'),
-              ),
-            ),
-            AppSpacing.gap12,
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.apple),
-                label: const Text('Continue with Apple'),
-              ),
-            ),
           ],
         ),
       ),

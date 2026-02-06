@@ -176,57 +176,6 @@ class _AuthMarketingPanel extends StatelessWidget {
                   ?.copyWith(color: const Color(0xFFE1F2F1), height: 1.5),
             ),
             AppSpacing.gap16,
-            Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: Color(0xFF0E5F5C)),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Michael Carter',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: Colors.white),
-                    ),
-                    Text(
-                      'Software Engineer at DevCore',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: const Color(0xFFCDE7E6)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            AppSpacing.gap24,
-            const Divider(color: Color(0xFF2F5F5D)),
-            AppSpacing.gap12,
-            Text(
-              'JOIN 1K+ CAMPUSES',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium
-                  ?.copyWith(color: const Color(0xFFBFE3E1)),
-            ),
-            AppSpacing.gap12,
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: const [
-                _LogoChip(label: 'Discord'),
-                _LogoChip(label: 'Mailchimp'),
-                _LogoChip(label: 'Grammarly'),
-                _LogoChip(label: 'Dropbox'),
-                _LogoChip(label: 'Square'),
-                _LogoChip(label: 'Intercom'),
-              ],
-            ),
           ],
         ),
       ),
@@ -237,30 +186,5 @@ class _AuthMarketingPanel extends StatelessWidget {
     }
 
     return SizedBox.expand(child: panel);
-  }
-}
-
-class _LogoChip extends StatelessWidget {
-  const _LogoChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0x1AFFFFFF),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x33FFFFFF)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium
-            ?.copyWith(color: Colors.white),
-      ),
-    );
   }
 }
