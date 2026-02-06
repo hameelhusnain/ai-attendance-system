@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/widgets/app_background.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/auth_layout.dart';
 import '../../../shared/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -41,63 +41,91 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AppBackground(
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'AI Attendance System',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    AppSpacing.gap8,
-                    Text(
-                      'Welcome back. Sign in to continue.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    AppSpacing.gap24,
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          AppTextField(
-                            label: 'Email or Username',
-                            controller: _emailController,
-                            keyboardType: TextInputType.text,
-                          ),
-                          AppSpacing.gap16,
-                          AppTextField(
-                            label: 'Password',
-                            controller: _passwordController,
-                            isPassword: true,
-                          ),
-                          AppSpacing.gap24,
-                          AppButton(
-                            label: _loading ? 'Signing in...' : 'Login',
-                            onPressed: _loading ? null : _submit,
-                          ),
-                        ],
-                      ),
-                    ),
-                    AppSpacing.gap16,
-                    TextButton(
-                      onPressed: () => context.go('/signup'),
-                      child: const Text('Create an account'),
-                    ),
-                  ],
-                ),
+    return AuthSplitLayout(
+      title: 'Welcome Back!',
+      subtitle: 'Sign in to access your dashboard and manage attendance.',
+      form: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            AppTextField(
+              label: 'Email or Username',
+              hintText: 'Enter your email',
+              controller: _emailController,
+              keyboardType: TextInputType.text,
+              prefixIcon: const Icon(Icons.mail_outline),
+            ),
+            AppSpacing.gap16,
+            AppTextField(
+              label: 'Password',
+              hintText: 'Enter your password',
+              controller: _passwordController,
+              isPassword: true,
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: const Icon(Icons.visibility_off_outlined),
+            ),
+            AppSpacing.gap12,
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text('Forgot password?'),
               ),
             ),
-          ),
+            AppSpacing.gap8,
+            AppButton(
+              label: _loading ? 'Signing in...' : 'Sign In',
+              onPressed: _loading ? null : _submit,
+            ),
+            AppSpacing.gap16,
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelMedium
+                        ?.copyWith(color: const Color(0xFF97A3B6)),
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            AppSpacing.gap16,
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.g_mobiledata),
+                label: const Text('Continue with Google'),
+              ),
+            ),
+            AppSpacing.gap12,
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.apple),
+                label: const Text('Continue with Apple'),
+              ),
+            ),
+          ],
         ),
+      ),
+      footer: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text("Don't have an account?"),
+          TextButton(
+            onPressed: () => context.go('/signup'),
+            child: const Text('Sign Up'),
+          ),
+        ],
       ),
     );
   }

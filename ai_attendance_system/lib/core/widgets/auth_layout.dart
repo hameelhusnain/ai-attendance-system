@@ -1,0 +1,266 @@
+import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import 'app_spacing.dart';
+
+class AuthSplitLayout extends StatelessWidget {
+  const AuthSplitLayout({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.form,
+    required this.footer,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget form;
+  final Widget footer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: AppTheme.light,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F8FB),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 980;
+              final leftPanel = _AuthFormPanel(
+                title: title,
+                subtitle: subtitle,
+                form: form,
+                footer: footer,
+              );
+              final rightPanel = const _AuthMarketingPanel();
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    Expanded(flex: 5, child: leftPanel),
+                    Expanded(flex: 5, child: rightPanel),
+                  ],
+                );
+              }
+
+              return SingleChildScrollView(
+                child: Column(
+                  children: [
+                    leftPanel,
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      child: _AuthMarketingPanel(isCompact: true),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthFormPanel extends StatelessWidget {
+  const _AuthFormPanel({
+    required this.title,
+    required this.subtitle,
+    required this.form,
+    required this.footer,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget form;
+  final Widget footer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    height: 40,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E5F5C),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.auto_awesome, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'AI Attendance',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                ],
+              ),
+              AppSpacing.gap24,
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              AppSpacing.gap8,
+              Text(
+                subtitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: const Color(0xFF5C677A)),
+              ),
+              AppSpacing.gap24,
+              form,
+              AppSpacing.gap16,
+              footer,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthMarketingPanel extends StatelessWidget {
+  const _AuthMarketingPanel({this.isCompact = false});
+
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final panel = Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(isCompact ? 20 : 0),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF0B3A3A),
+            Color(0xFF0E5F5C),
+            Color(0xFF114B57),
+          ],
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 20 : 48,
+          vertical: isCompact ? 24 : 56,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Smarter Attendance with AI',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+            ),
+            AppSpacing.gap16,
+            Text(
+              '"Our attendance process is now seamless, reliable, and insight-driven."',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: const Color(0xFFE1F2F1), height: 1.5),
+            ),
+            AppSpacing.gap16,
+            Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, color: Color(0xFF0E5F5C)),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Michael Carter',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Colors.white),
+                    ),
+                    Text(
+                      'Software Engineer at DevCore',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: const Color(0xFFCDE7E6)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            AppSpacing.gap24,
+            const Divider(color: Color(0xFF2F5F5D)),
+            AppSpacing.gap12,
+            Text(
+              'JOIN 1K+ CAMPUSES',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(color: const Color(0xFFBFE3E1)),
+            ),
+            AppSpacing.gap12,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: const [
+                _LogoChip(label: 'Discord'),
+                _LogoChip(label: 'Mailchimp'),
+                _LogoChip(label: 'Grammarly'),
+                _LogoChip(label: 'Dropbox'),
+                _LogoChip(label: 'Square'),
+                _LogoChip(label: 'Intercom'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (isCompact) {
+      return panel;
+    }
+
+    return SizedBox.expand(child: panel);
+  }
+}
+
+class _LogoChip extends StatelessWidget {
+  const _LogoChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0x1AFFFFFF),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x33FFFFFF)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context)
+            .textTheme
+            .labelMedium
+            ?.copyWith(color: Colors.white),
+      ),
+    );
+  }
+}

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/widgets/app_background.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/auth_layout.dart';
 import '../../../shared/services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -51,100 +51,91 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AppBackground(
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Create Account',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    AppSpacing.gap8,
-                    Text(
-                      'Join the AI Attendance System.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    AppSpacing.gap24,
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          AppTextField(
-                            label: 'Full Name',
-                            controller: _nameController,
-                          ),
-                          AppSpacing.gap16,
-                          AppTextField(
-                            label: 'Username',
-                            controller: _usernameController,
-                          ),
-                          AppSpacing.gap16,
-                          AppTextField(
-                            label: 'Email (optional)',
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            requiredField: false,
-                          ),
-                          AppSpacing.gap16,
-                          DropdownButtonFormField<String>(
-                            initialValue: _role,
-                            items: const [
-                              DropdownMenuItem(value: 'Root', child: Text('Root')),
-                              DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                              DropdownMenuItem(value: 'Student', child: Text('Student')),
-                            ],
-                            onChanged: (value) => setState(() => _role = value ?? 'Student'),
-                            decoration: const InputDecoration(labelText: 'Role'),
-                          ),
-                          AppSpacing.gap16,
-                          AppTextField(
-                            label: 'Password',
-                            controller: _passwordController,
-                            isPassword: true,
-                          ),
-                          AppSpacing.gap16,
-                          TextFormField(
-                            controller: _confirmController,
-                            obscureText: true,
-                            decoration: const InputDecoration(labelText: 'Confirm Password'),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Required';
-                              }
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match';
-                              }
-                              return null;
-                            },
-                          ),
-                          AppSpacing.gap24,
-                          AppButton(
-                            label: _loading ? 'Creating...' : 'Create Account',
-                            onPressed: _loading ? null : _submit,
-                          ),
-                        ],
-                      ),
-                    ),
-                    AppSpacing.gap16,
-                    TextButton(
-                      onPressed: () => context.go('/'),
-                      child: const Text('I already have an account'),
-                    ),
-                  ],
-                ),
+    return AuthSplitLayout(
+      title: 'Create Account',
+      subtitle: 'Create your profile to access attendance insights.',
+      form: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            AppTextField(
+              label: 'Full Name',
+              hintText: 'Enter your full name',
+              controller: _nameController,
+              prefixIcon: const Icon(Icons.person_outline),
+            ),
+            AppSpacing.gap16,
+            AppTextField(
+              label: 'Username',
+              hintText: 'Choose a username',
+              controller: _usernameController,
+              prefixIcon: const Icon(Icons.account_circle_outlined),
+            ),
+            AppSpacing.gap16,
+            AppTextField(
+              label: 'Email (optional)',
+              hintText: 'Enter your email',
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              requiredField: false,
+              prefixIcon: const Icon(Icons.mail_outline),
+            ),
+            AppSpacing.gap16,
+            DropdownButtonFormField<String>(
+              initialValue: _role,
+              items: const [
+                DropdownMenuItem(value: 'Root', child: Text('Root')),
+                DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+                DropdownMenuItem(value: 'Student', child: Text('Student')),
+              ],
+              onChanged: (value) => setState(() => _role = value ?? 'Student'),
+              decoration: const InputDecoration(
+                labelText: 'Role',
+                prefixIcon: Icon(Icons.badge_outlined),
               ),
             ),
-          ),
+            AppSpacing.gap16,
+            AppTextField(
+              label: 'Password',
+              hintText: 'Create a password',
+              controller: _passwordController,
+              isPassword: true,
+              prefixIcon: const Icon(Icons.lock_outline),
+            ),
+            AppSpacing.gap16,
+            AppTextField(
+              label: 'Confirm Password',
+              hintText: 'Re-enter your password',
+              controller: _confirmController,
+              isPassword: true,
+              prefixIcon: const Icon(Icons.lock_outline),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Required';
+                }
+                if (value != _passwordController.text) {
+                  return 'Passwords do not match';
+                }
+                return null;
+              },
+            ),
+            AppSpacing.gap24,
+            AppButton(
+              label: _loading ? 'Creating...' : 'Create Account',
+              onPressed: _loading ? null : _submit,
+            ),
+          ],
         ),
+      ),
+      footer: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('Already have an account?'),
+          TextButton(
+            onPressed: () => context.go('/'),
+            child: const Text('Sign In'),
+          ),
+        ],
       ),
     );
   }
