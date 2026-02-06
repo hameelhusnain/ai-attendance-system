@@ -14,19 +14,21 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = isPrimary ? scheme.primary : scheme.surface;
-    final foreground = isPrimary ? scheme.onPrimary : scheme.onSurface;
+    if (isPrimary) {
+      return SizedBox(
+        height: 48,
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          child: Text(label),
+        ),
+      );
+    }
 
     return SizedBox(
       height: 48,
       width: double.infinity,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: foreground,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
+      child: OutlinedButton(
         onPressed: onPressed,
         child: Text(label),
       ),

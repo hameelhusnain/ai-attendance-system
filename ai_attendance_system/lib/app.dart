@@ -11,7 +11,7 @@ class AiAttendanceApp extends StatelessWidget {
       title: 'AI Attendance System',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.light,
       routerConfig: AppRouter.router,
       debugShowCheckedModeBanner: false,
     );

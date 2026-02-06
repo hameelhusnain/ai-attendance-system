@@ -21,4 +21,8 @@ class AuthService {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     return AppUser(id: 'u-002', name: name, username: username, role: role);
   }
+
+  Future<void> logout() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
 }
