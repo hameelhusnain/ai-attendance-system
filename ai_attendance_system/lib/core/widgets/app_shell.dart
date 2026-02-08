@@ -29,8 +29,8 @@ class AppShell extends StatelessWidget {
                 Expanded(
                   child: _MainContent(
                     title: title,
-                    child: child,
                     showMenu: false,
+                    child: child,
                   ),
                 ),
               ],
@@ -42,8 +42,8 @@ class AppShell extends StatelessWidget {
           drawer: AppSidebar(location: location, isDrawer: true),
           body: _MainContent(
             title: title,
-            child: child,
             showMenu: true,
+            child: child,
           ),
           bottomNavigationBar: showBottomNav
               ? _BottomNav(location: location)
@@ -220,7 +220,7 @@ class AppHeader extends StatelessWidget {
 }
 
 class AppSidebar extends StatelessWidget {
-  AppSidebar({
+  const AppSidebar({
     super.key,
     required this.location,
     required this.isDrawer,

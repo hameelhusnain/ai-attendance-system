@@ -62,7 +62,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                     final isWide = constraints.maxWidth > 720;
                     final filters = [
                       DropdownButtonFormField<String>(
-                        value: _classFilter,
+                        initialValue: _classFilter,
                         decoration: const InputDecoration(labelText: 'Class'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),
@@ -75,7 +75,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                         onChanged: (value) => setState(() => _classFilter = value ?? 'All'),
                       ),
                       DropdownButtonFormField<String>(
-                        value: _statusFilter,
+                        initialValue: _statusFilter,
                         decoration: const InputDecoration(labelText: 'Status'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),
