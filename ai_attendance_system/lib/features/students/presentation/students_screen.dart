@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -41,8 +42,10 @@ class _StudentsScreenState extends State<StudentsScreen> {
   @override
   Widget build(BuildContext context) {
     final students = _filteredStudents();
+    final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
+    final padding = EdgeInsets.all(isDesktop ? 24 : 16);
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive.dart';
 import 'app_spacing.dart';
 
 class AuthSplitLayout extends StatelessWidget {
@@ -25,7 +26,7 @@ class AuthSplitLayout extends StatelessWidget {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 980;
+              final isDesktop = ResponsiveLayout.isDesktop(constraints.maxWidth);
               final leftPanel = _AuthFormPanel(
                 title: title,
                 subtitle: subtitle,
@@ -34,7 +35,7 @@ class AuthSplitLayout extends StatelessWidget {
               );
               final rightPanel = const _AuthMarketingPanel();
 
-              if (isWide) {
+              if (isDesktop) {
                 return Row(
                   children: [
                     Expanded(flex: 5, child: leftPanel),
@@ -49,7 +50,7 @@ class AuthSplitLayout extends StatelessWidget {
                     leftPanel,
                     const Padding(
                       padding: EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      child: _AuthMarketingPanel(isCompact: true),
+                      child: _MobilePromoPanel(),
                     ),
                   ],
                 ),
@@ -186,5 +187,27 @@ class _AuthMarketingPanel extends StatelessWidget {
     }
 
     return SizedBox.expand(child: panel);
+  }
+}
+
+class _MobilePromoPanel extends StatelessWidget {
+  const _MobilePromoPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFFEEF3F2),
+        border: Border.all(color: const Color(0xFFE1E6EE)),
+      ),
+      child: ExpansionTile(
+        title: const Text('Why AI Attendance?'),
+        childrenPadding: const EdgeInsets.all(16),
+        children: const [
+          _AuthMarketingPanel(isCompact: true),
+        ],
+      ),
+    );
   }
 }

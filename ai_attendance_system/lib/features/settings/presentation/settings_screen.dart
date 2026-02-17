@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 
@@ -7,8 +8,10 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
+    final padding = EdgeInsets.all(isDesktop ? 24 : 16);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

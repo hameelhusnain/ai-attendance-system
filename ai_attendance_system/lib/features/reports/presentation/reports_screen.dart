@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../shared/services/mock_data_service.dart';
@@ -10,9 +11,11 @@ class ReportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final summary = MockDataService.reportSummary;
     final reports = MockDataService.reports;
+    final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
+    final padding = EdgeInsets.all(isDesktop ? 24 : 16);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/services/auth_service.dart';
 import 'app_spacing.dart';
+import '../utils/responsive.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({
@@ -17,8 +18,7 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 1100;
-        final showBottomNav = constraints.maxWidth < 720;
+        final isDesktop = ResponsiveLayout.isDesktop(constraints.maxWidth);
         final title = _titleForLocation(location);
 
         if (isDesktop) {
@@ -39,15 +39,14 @@ class AppShell extends StatelessWidget {
         }
 
         return Scaffold(
-          drawer: AppSidebar(location: location, isDrawer: true),
-          body: _MainContent(
-            title: title,
-            showMenu: true,
-            child: child,
+          appBar: _MobileAppBar(title: title),
+          body: SafeArea(
+            child: Container(
+              color: const Color(0xFFF5F7FA),
+              child: child,
+            ),
           ),
-          bottomNavigationBar: showBottomNav
-              ? _BottomNav(location: location)
-              : null,
+          bottomNavigationBar: _BottomNav(location: location),
         );
       },
     );
@@ -215,6 +214,58 @@ class AppHeader extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _MobileAppBar({required this.title});
+
+  final String title;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black87,
+      elevation: 0,
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_none),
+          onPressed: () {},
+        ),
+        PopupMenuButton<String>(
+          onSelected: (value) async {
+            if (value == 'logout') {
+              await AuthService().logout();
+              if (context.mounted) {
+                context.go('/');
+              }
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(value: 'profile', child: Text('Profile')),
+            PopupMenuItem(value: 'logout', child: Text('Logout')),
+          ],
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Color(0xFF0E5F5C),
+              child: Icon(Icons.person, size: 18, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

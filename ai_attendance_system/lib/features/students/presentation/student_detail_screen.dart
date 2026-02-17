@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
@@ -18,13 +19,15 @@ class StudentDetailScreen extends StatelessWidget {
       (item) => item.id == studentId,
       orElse: () => MockDataService.students.first,
     );
+    final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
+    final padding = EdgeInsets.all(isDesktop ? 24 : 16);
 
     final records = MockDataService.attendanceRecords
         .where((record) => record.studentName == student.name)
         .toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
