@@ -134,7 +134,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                     )
                   : ListView.separated(
                       itemCount: students.length,
-                      separatorBuilder: (_, __) => const Divider(height: 24),
+                      separatorBuilder: (_, _) => const Divider(height: 24),
                       itemBuilder: (context, index) {
                         final student = students[index];
                         return ListTile(

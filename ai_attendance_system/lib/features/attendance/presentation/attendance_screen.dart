@@ -60,7 +60,7 @@ class AttendanceScreen extends StatelessWidget {
             child: AppCard(
               child: ListView.separated(
                 itemCount: records.length,
-                separatorBuilder: (_, __) => const Divider(height: 24),
+                separatorBuilder: (_, _) => const Divider(height: 24),
                 itemBuilder: (context, index) {
                   final record = records[index];
                   return ListTile(
