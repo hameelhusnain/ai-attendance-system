@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
@@ -118,10 +119,10 @@ class _KpiCard extends StatelessWidget {
             height: 44,
             width: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF0E5F5C).withOpacity(0.12),
+              color: AppTheme.brandGreen.withOpacity(0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: const Color(0xFF0E5F5C)),
+            child: Icon(icon, color: AppTheme.brandGreen),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -171,7 +172,7 @@ class _RecentActivityCard extends StatelessWidget {
                     width: 10,
                     margin: const EdgeInsets.only(top: 6),
                     decoration: const BoxDecoration(
-                      color: Color(0xFF0E5F5C),
+                      color: AppTheme.brandGreen,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -190,7 +191,7 @@ class _RecentActivityCard extends StatelessWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: const Color(0xFF7D8CA1)),
+                              ?.copyWith(color: AppTheme.textSecondary),
                         ),
                       ],
                     ),
@@ -200,7 +201,7 @@ class _RecentActivityCard extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: const Color(0xFF7D8CA1)),
+                        ?.copyWith(color: AppTheme.textSecondary),
                   ),
                 ],
               ),

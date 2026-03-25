@@ -43,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return AuthSplitLayout(
       title: 'Welcome Back!',
-      subtitle: 'Sign in to access your dashboard and manage attendance.',
+      subtitle: 'Welcome to AI Attendance System, please login/sign in to continue.',
       form: Form(
         key: _formKey,
         child: Column(

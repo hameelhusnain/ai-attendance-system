@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
@@ -89,7 +90,7 @@ class _ProfileCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: const Color(0xFF0E5F5C).withOpacity(0.12),
+                backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
                 child: Text(student.name.substring(0, 1)),
               ),
               const SizedBox(width: 16),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
@@ -140,7 +141,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: CircleAvatar(
-                            backgroundColor: const Color(0xFF0E5F5C).withOpacity(0.12),
+                            backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
                             child: Text(student.name.substring(0, 1)),
                           ),
                           title: Text(student.name),
@@ -176,13 +177,13 @@ class _StatusChip extends StatelessWidget {
     Color color;
     switch (status) {
       case 'Active':
-        color = const Color(0xFF0E5F5C);
+        color = AppTheme.brandGreen;
         break;
       case 'On Leave':
-        color = const Color(0xFFE0A800);
+        color = AppTheme.accentOrange;
         break;
       default:
-        color = const Color(0xFFB00020);
+        color = AppTheme.danger;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

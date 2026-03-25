@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
@@ -20,7 +21,7 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 const CircleAvatar(
                   radius: 28,
-                  backgroundColor: Color(0xFF0E5F5C),
+                  backgroundColor: AppTheme.brandGreen,
                   child: Icon(Icons.person, color: Colors.white),
                 ),
                 const SizedBox(width: 16),

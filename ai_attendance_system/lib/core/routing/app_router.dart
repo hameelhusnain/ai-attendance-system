@@ -73,7 +73,13 @@ class AppRouter {
     return CustomTransitionPage<void>(
       child: child,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        return FadeTransition(opacity: animation, child: child);
+        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+        final offset = Tween<Offset>(begin: const Offset(0, 0.02), end: Offset.zero)
+            .animate(curved);
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(position: offset, child: child),
+        );
       },
     );
   }

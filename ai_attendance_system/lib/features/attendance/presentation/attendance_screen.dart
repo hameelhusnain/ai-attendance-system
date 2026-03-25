@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
@@ -66,7 +67,7 @@ class AttendanceScreen extends StatelessWidget {
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
-                      backgroundColor: const Color(0xFF0E5F5C).withOpacity(0.12),
+                      backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
                       child: Text(record.studentName.substring(0, 1)),
                     ),
                     title: Text(record.studentName),
@@ -92,7 +93,7 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Chip(
       label: Text(label),
-      backgroundColor: const Color(0xFF0E5F5C).withOpacity(0.1),
+      backgroundColor: AppTheme.brandGreen.withOpacity(0.16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
@@ -105,7 +106,7 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status == 'Present' ? const Color(0xFF0E5F5C) : const Color(0xFFB00020);
+    final color = status == 'Present' ? AppTheme.brandGreen : AppTheme.danger;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(

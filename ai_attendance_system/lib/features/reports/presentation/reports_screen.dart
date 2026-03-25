@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
@@ -64,11 +65,19 @@ class ReportsScreen extends StatelessWidget {
                 Container(
                   height: 180,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0E5F5C).withOpacity(0.08),
+                    color: AppTheme.brandGreen.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE1E6EE)),
+                    border: Border.all(color: AppTheme.border),
                   ),
-                  child: const Center(child: Text('Chart Placeholder')),
+                  child: Center(
+                    child: Text(
+                      'Chart Placeholder',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppTheme.textSecondary),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -102,7 +111,7 @@ class ReportsScreen extends StatelessWidget {
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
-                                    ?.copyWith(color: const Color(0xFF7D8CA1))),
+                                    ?.copyWith(color: AppTheme.textSecondary)),
                           ],
                         ),
                         _StatusChip(status: report.status),
@@ -151,7 +160,7 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status == 'Ready' ? const Color(0xFF0E5F5C) : const Color(0xFFE0A800);
+    final color = status == 'Ready' ? AppTheme.brandGreen : AppTheme.accentOrange;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(

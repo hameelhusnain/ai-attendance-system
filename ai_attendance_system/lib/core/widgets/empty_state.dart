@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'app_spacing.dart';
 
 class EmptyState extends StatelessWidget {
@@ -13,7 +14,7 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inbox_outlined, size: 40, color: Color(0xFF8C9AAD)),
+          const Icon(Icons.inbox_outlined, size: 40, color: AppTheme.muted),
           AppSpacing.gap12,
           Text(
             title,
@@ -26,7 +27,7 @@ class EmptyState extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
-                ?.copyWith(color: const Color(0xFF8C9AAD)),
+                ?.copyWith(color: AppTheme.muted),
           ),
         ],
       ),

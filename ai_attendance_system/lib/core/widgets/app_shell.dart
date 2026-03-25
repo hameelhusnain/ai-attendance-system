@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/services/auth_service.dart';
+import '../theme/app_theme.dart';
+import 'app_background.dart';
 import 'app_spacing.dart';
 import '../utils/responsive.dart';
 
@@ -23,26 +25,29 @@ class AppShell extends StatelessWidget {
 
         if (isDesktop) {
           return Scaffold(
-            body: Row(
-              children: [
-                AppSidebar(location: location, isDrawer: false),
-                Expanded(
-                  child: _MainContent(
-                    title: title,
-                    showMenu: false,
-                    child: child,
+            backgroundColor: Colors.transparent,
+            body: AppBackground(
+              child: Row(
+                children: [
+                  AppSidebar(location: location, isDrawer: false),
+                  Expanded(
+                    child: _MainContent(
+                      title: title,
+                      showMenu: false,
+                      child: child,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }
 
         return Scaffold(
+          backgroundColor: Colors.transparent,
           appBar: _MobileAppBar(title: title),
-          body: SafeArea(
-            child: Container(
-              color: const Color(0xFFF5F7FA),
+          body: AppBackground(
+            child: SafeArea(
               child: child,
             ),
           ),
@@ -94,7 +99,7 @@ class _MainContent extends StatelessWidget {
         ),
         Expanded(
           child: Container(
-            color: const Color(0xFFF5F7FA),
+            color: Colors.transparent,
             child: child,
           ),
         ),
@@ -121,9 +126,9 @@ class AppHeader extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.surfaceCard,
             border: Border(
-              bottom: BorderSide(color: Color(0xFFE3E8F0)),
+              bottom: BorderSide(color: AppTheme.border),
             ),
           ),
           child: Row(
@@ -151,13 +156,15 @@ class AppHeader extends StatelessWidget {
                         hintText: 'Search students...',
                         prefixIcon: const Icon(Icons.search),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                        filled: true,
+                        fillColor: AppTheme.surfaceAlt,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE1E6EE)),
+                          borderSide: const BorderSide(color: AppTheme.border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE1E6EE)),
+                          borderSide: const BorderSide(color: AppTheme.border),
                         ),
                       ),
                     ),
@@ -177,7 +184,7 @@ class AppHeader extends StatelessWidget {
                       height: 8,
                       width: 8,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF0E5F5C),
+                        color: AppTheme.accentOrange,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -201,7 +208,7 @@ class AppHeader extends StatelessWidget {
                   children: [
                     const CircleAvatar(
                       radius: 16,
-                      backgroundColor: Color(0xFF0E5F5C),
+                      backgroundColor: AppTheme.brandGreen,
                       child: Icon(Icons.person, size: 18, color: Colors.white),
                     ),
                     const SizedBox(width: 8),
@@ -229,8 +236,8 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.black87,
+      backgroundColor: AppTheme.surfaceCard,
+      foregroundColor: AppTheme.textPrimary,
       elevation: 0,
       title: Text(
         title,
@@ -260,7 +267,7 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
             padding: EdgeInsets.symmetric(horizontal: 12),
             child: CircleAvatar(
               radius: 16,
-              backgroundColor: Color(0xFF0E5F5C),
+              backgroundColor: AppTheme.brandGreen,
               child: Icon(Icons.person, size: 18, color: Colors.white),
             ),
           ),
@@ -297,9 +304,9 @@ class AppSidebar extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF0B3A3A),
-            Color(0xFF0E5F5C),
-            Color(0xFF0C3D42),
+            Color(0xFF0D0F16),
+            Color(0xFF1B1430),
+            Color(0xFF0F2A22),
           ],
         ),
       ),
@@ -321,13 +328,13 @@ class AppSidebar extends StatelessWidget {
                     child: const Icon(Icons.auto_awesome, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'AI Attendance',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              AppSpacing.gap24,
+                const Text(
+                  'AI Attendance',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            AppSpacing.gap24,
               for (final item in items)
                 _SidebarItem(
                   item: item,
@@ -345,7 +352,7 @@ class AppSidebar extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .labelMedium
-                    ?.copyWith(color: const Color(0xFFBFE3E1)),
+                    ?.copyWith(color: AppTheme.textSecondary),
               ),
             ],
           ),
@@ -374,7 +381,7 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? Colors.white : const Color(0xFFBFE3E1);
+    final color = isActive ? Colors.white : AppTheme.textSecondary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -382,7 +389,7 @@ class _SidebarItem extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white.withOpacity(0.14) : Colors.transparent,
+          color: isActive ? Colors.white.withOpacity(0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
