@@ -4,11 +4,20 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_reveal.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../shared/services/mock_data_service.dart';
 
-class DashboardOverviewScreen extends StatelessWidget {
+class DashboardOverviewScreen extends StatefulWidget {
   const DashboardOverviewScreen({super.key});
+
+  @override
+  State<DashboardOverviewScreen> createState() => _DashboardOverviewScreenState();
+}
+
+class _DashboardOverviewScreenState extends State<DashboardOverviewScreen> {
+  final List<String> _filters = const ['Daily', 'Weekly', 'Monthly'];
+  String _activeFilter = 'Weekly';
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +30,92 @@ class DashboardOverviewScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AppReveal(
+            child: Text(
+              'Welcome back admin',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          AppSpacing.gap8,
+          AppReveal(
+            delay: const Duration(milliseconds: 80),
+            child: Text(
+              'Here is a quick look at today’s attendance activity.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+          AppSpacing.gap16,
+          AppReveal(
+            delay: const Duration(milliseconds: 140),
+            child: AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Attendance Summary',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  AppSpacing.gap12,
+                  Wrap(
+                    spacing: 10,
+                    children: _filters.map((filter) {
+                      final isSelected = _activeFilter == filter;
+                      return ChoiceChip(
+                        label: Text(filter),
+                        selected: isSelected,
+                        onSelected: (_) => setState(() => _activeFilter = filter),
+                        selectedColor: AppTheme.brandGreen.withOpacity(0.2),
+                        labelStyle: TextStyle(
+                          color: isSelected ? AppTheme.textPrimary : AppTheme.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  AppSpacing.gap16,
+                  Container(
+                    height: 180,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.border),
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.brandGreen.withOpacity(0.18),
+                          AppTheme.accentPurple.withOpacity(0.14),
+                          AppTheme.accentOrange.withOpacity(0.12),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Chart Placeholder ($_activeFilter)',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: AppTheme.textSecondary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AppSpacing.gap16,
           Text(
             'Overview',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
           ),
-          AppSpacing.gap16,
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;

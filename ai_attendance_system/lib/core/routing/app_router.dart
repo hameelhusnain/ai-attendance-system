@@ -9,6 +9,10 @@ import '../../features/students/presentation/student_detail_screen.dart';
 import '../../features/students/presentation/students_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/sessions/presentation/sessions_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/about/presentation/about_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -33,6 +37,26 @@ class AppRouter {
             path: '/dashboard',
             name: 'dashboard',
             pageBuilder: (context, state) => _fade(const DashboardOverviewScreen()),
+          ),
+          GoRoute(
+            path: '/sessions',
+            name: 'sessions',
+            pageBuilder: (context, state) => _fade(const SessionsScreen()),
+          ),
+          GoRoute(
+            path: '/search',
+            name: 'search',
+            pageBuilder: (context, state) => _fade(const SearchScreen()),
+          ),
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            pageBuilder: (context, state) => _fade(const ProfileScreen()),
+          ),
+          GoRoute(
+            path: '/about',
+            name: 'about',
+            pageBuilder: (context, state) => _fade(const AboutScreen()),
           ),
           GoRoute(
             path: '/attendance',

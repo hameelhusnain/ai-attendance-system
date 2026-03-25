@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_controller.dart';
 import 'app_background.dart';
 import 'app_spacing.dart';
 import '../utils/responsive.dart';
@@ -46,6 +47,7 @@ class AppShell extends StatelessWidget {
         return Scaffold(
           backgroundColor: Colors.transparent,
           appBar: _MobileAppBar(title: title),
+          endDrawer: const _AppEndDrawer(),
           body: AppBackground(
             child: SafeArea(
               child: child,
@@ -72,6 +74,14 @@ class AppShell extends StatelessWidget {
         return 'Reports';
       case '/settings':
         return 'Settings';
+      case '/sessions':
+        return 'Sessions';
+      case '/search':
+        return 'Search';
+      case '/profile':
+        return 'Profile';
+      case '/about':
+        return 'About';
       default:
         return 'Dashboard';
     }
@@ -171,50 +181,17 @@ class AppHeader extends StatelessWidget {
                   ),
                 ),
               if (showSearch) const SizedBox(width: 16),
-              Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_none),
-                    onPressed: () {},
+              const Spacer(),
+              SizedBox(
+                height: 32,
+                width: 120,
+                child: Image.asset(
+                  'assets/logo.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.auto_awesome,
+                    color: AppTheme.textPrimary,
                   ),
-                  Positioned(
-                    right: 10,
-                    top: 10,
-                    child: Container(
-                      height: 8,
-                      width: 8,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.accentOrange,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              PopupMenuButton<String>(
-                onSelected: (value) async {
-                  if (value == 'logout') {
-                    await AuthService().logout();
-                    if (context.mounted) {
-                      context.go('/');
-                    }
-                  }
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'profile', child: Text('Profile')),
-                  PopupMenuItem(value: 'logout', child: Text('Logout')),
-                ],
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AppTheme.brandGreen,
-                      child: Icon(Icons.person, size: 18, color: Colors.white),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('Admin'),
-                    const Icon(Icons.expand_more),
-                  ],
                 ),
               ),
             ],
@@ -239,6 +216,17 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppTheme.surfaceCard,
       foregroundColor: AppTheme.textPrimary,
       elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Image.asset(
+          'assets/logo.png',
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => const Icon(
+            Icons.auto_awesome,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+      ),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -246,30 +234,10 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_none),
-          onPressed: () {},
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) async {
-            if (value == 'logout') {
-              await AuthService().logout();
-              if (context.mounted) {
-                context.go('/');
-              }
-            }
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'profile', child: Text('Profile')),
-            PopupMenuItem(value: 'logout', child: Text('Logout')),
-          ],
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppTheme.brandGreen,
-              child: Icon(Icons.person, size: 18, color: Colors.white),
-            ),
+        Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openEndDrawer(),
           ),
         ),
       ],
@@ -289,10 +257,10 @@ class AppSidebar extends StatelessWidget {
 
   final List<_NavItem> items = const [
     _NavItem(label: 'Dashboard', icon: Icons.dashboard_outlined, route: '/dashboard'),
-    _NavItem(label: 'Attendance', icon: Icons.fact_check_outlined, route: '/attendance'),
-    _NavItem(label: 'Students', icon: Icons.people_alt_outlined, route: '/students'),
-    _NavItem(label: 'Reports', icon: Icons.bar_chart_outlined, route: '/reports'),
-    _NavItem(label: 'Settings', icon: Icons.settings_outlined, route: '/settings'),
+    _NavItem(label: 'Sessions', icon: Icons.timer_outlined, route: '/sessions'),
+    _NavItem(label: 'Search', icon: Icons.search_outlined, route: '/search'),
+    _NavItem(label: 'Profile', icon: Icons.person_outline, route: '/profile'),
+    _NavItem(label: 'About', icon: Icons.info_outline, route: '/about'),
   ];
 
   @override
@@ -328,13 +296,13 @@ class AppSidebar extends StatelessWidget {
                     child: const Icon(Icons.auto_awesome, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
-                const Text(
-                  'AI Attendance',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-            AppSpacing.gap24,
+                  const Text(
+                    'AI Attendance',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              AppSpacing.gap24,
               for (final item in items)
                 _SidebarItem(
                   item: item,
@@ -413,10 +381,9 @@ class _BottomNav extends StatelessWidget {
   final String location;
 
   int _indexForLocation(String location) {
-    if (location.startsWith('/attendance')) return 1;
-    if (location.startsWith('/students')) return 2;
-    if (location.startsWith('/reports')) return 3;
-    if (location.startsWith('/settings')) return 4;
+    if (location.startsWith('/sessions')) return 1;
+    if (location.startsWith('/search')) return 2;
+    if (location.startsWith('/profile')) return 3;
     return 0;
   }
 
@@ -431,26 +398,22 @@ class _BottomNav extends StatelessWidget {
             context.go('/dashboard');
             break;
           case 1:
-            context.go('/attendance');
+            context.go('/sessions');
             break;
           case 2:
-            context.go('/students');
+            context.go('/search');
             break;
           case 3:
-            context.go('/reports');
-            break;
-          case 4:
-            context.go('/settings');
+            context.go('/profile');
             break;
         }
       },
       type: BottomNavigationBarType.fixed,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.fact_check_outlined), label: 'Attendance'),
-        BottomNavigationBarItem(icon: Icon(Icons.people_alt_outlined), label: 'Students'),
-        BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: 'Reports'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        BottomNavigationBarItem(icon: Icon(Icons.timer_outlined), label: 'Sessions'),
+        BottomNavigationBarItem(icon: Icon(Icons.search_outlined), label: 'Search'),
+        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
       ],
     );
   }
@@ -462,4 +425,48 @@ class _NavItem {
   final String label;
   final IconData icon;
   final String route;
+}
+
+class _AppEndDrawer extends StatelessWidget {
+  const _AppEndDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    final themeController = ThemeScope.of(context);
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.brightness_6_outlined),
+              title: const Text('Dark Theme'),
+              trailing: Switch(
+                value: themeController.isDark,
+                onChanged: (_) => themeController.toggle(),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.go('/about');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () async {
+                Navigator.of(context).pop();
+                await AuthService().logout();
+                if (context.mounted) {
+                  context.go('/');
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
