@@ -46,7 +46,7 @@ class ProfileScreen extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppTheme.textSecondary),
+                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                     ),
                   ],
                 ),

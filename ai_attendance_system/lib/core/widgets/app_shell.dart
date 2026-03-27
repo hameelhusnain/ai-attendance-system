@@ -63,6 +63,9 @@ class AppShell extends StatelessWidget {
     if (location.startsWith('/students/')) {
       return 'Student Details';
     }
+    if (location.startsWith('/sessions/')) {
+      return 'Session Details';
+    }
     switch (location) {
       case '/dashboard':
         return 'Dashboard';
@@ -135,10 +138,10 @@ class AppHeader extends StatelessWidget {
         final showSearch = constraints.maxWidth > 760;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: const BoxDecoration(
-            color: AppTheme.surfaceCard,
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceCardFor(context),
             border: Border(
-              bottom: BorderSide(color: AppTheme.border),
+              bottom: BorderSide(color: AppTheme.borderFor(context)),
             ),
           ),
           child: Row(
@@ -167,14 +170,14 @@ class AppHeader extends StatelessWidget {
                         prefixIcon: const Icon(Icons.search),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                         filled: true,
-                        fillColor: AppTheme.surfaceAlt,
+                        fillColor: AppTheme.surfaceAltFor(context),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.border),
+                          borderSide: BorderSide(color: AppTheme.borderFor(context)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.border),
+                          borderSide: BorderSide(color: AppTheme.borderFor(context)),
                         ),
                       ),
                     ),
@@ -188,9 +191,9 @@ class AppHeader extends StatelessWidget {
                 child: Image.asset(
                   'assets/logo.png',
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.auto_awesome,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.textPrimaryFor(context),
                   ),
                 ),
               ),
@@ -213,17 +216,17 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: AppTheme.surfaceCard,
-      foregroundColor: AppTheme.textPrimary,
+      backgroundColor: AppTheme.surfaceCardFor(context),
+      foregroundColor: AppTheme.textPrimaryFor(context),
       elevation: 0,
       leading: Padding(
         padding: const EdgeInsets.only(left: 12),
         child: Image.asset(
           'assets/logo.png',
           fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => const Icon(
+          errorBuilder: (context, error, stackTrace) => Icon(
             Icons.auto_awesome,
-            color: AppTheme.textPrimary,
+            color: AppTheme.textPrimaryFor(context),
           ),
         ),
       ),
@@ -267,15 +270,21 @@ class AppSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final content = Container(
       width: 260,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0D0F16),
-            Color(0xFF1B1430),
-            Color(0xFF0F2A22),
-          ],
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? const [
+                  Color(0xFF0D0F16),
+                  Color(0xFF1B1430),
+                  Color(0xFF0F2A22),
+                ]
+              : const [
+                  Color(0xFFF4F6FA),
+                  Color(0xFFE7ECF5),
+                  Color(0xFFF4F6FA),
+                ],
         ),
       ),
       child: SafeArea(
@@ -290,15 +299,25 @@ class AppSidebar extends StatelessWidget {
                     height: 36,
                     width: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white.withOpacity(0.12)
+                          : AppTheme.lightSurfaceAlt,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.auto_awesome, color: Colors.white),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : AppTheme.textPrimaryFor(context),
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
+                  Text(
                     'AI Attendance',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      color: AppTheme.textPrimaryFor(context),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -320,7 +339,7 @@ class AppSidebar extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .labelMedium
-                    ?.copyWith(color: AppTheme.textSecondary),
+                    ?.copyWith(color: AppTheme.textSecondaryFor(context)),
               ),
             ],
           ),
@@ -349,7 +368,7 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? Colors.white : AppTheme.textSecondary;
+    final color = isActive ? Colors.white : AppTheme.textSecondaryFor(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -392,6 +411,11 @@ class _BottomNav extends StatelessWidget {
     final index = _indexForLocation(location);
     return BottomNavigationBar(
       currentIndex: index,
+      backgroundColor: AppTheme.surfaceCardFor(context),
+      selectedItemColor: AppTheme.brandGreen,
+      unselectedItemColor: AppTheme.textSecondaryFor(context),
+      selectedIconTheme: const IconThemeData(color: AppTheme.brandGreen),
+      selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
       onTap: (value) {
         switch (value) {
           case 0:

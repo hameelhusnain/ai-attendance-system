@@ -10,6 +10,7 @@ import '../../features/students/presentation/students_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/sessions/presentation/sessions_screen.dart';
+import '../../features/sessions/presentation/session_detail_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/about/presentation/about_screen.dart';
@@ -42,6 +43,19 @@ class AppRouter {
             path: '/sessions',
             name: 'sessions',
             pageBuilder: (context, state) => _fade(const SessionsScreen()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'session-detail',
+                pageBuilder: (context, state) {
+                  final session = state.extra;
+                  if (session is! SessionDetailArgs) {
+                    return _fade(const SessionsScreen());
+                  }
+                  return _fade(SessionDetailScreen(session: session.session));
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/search',

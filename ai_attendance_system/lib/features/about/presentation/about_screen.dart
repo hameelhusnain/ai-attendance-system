@@ -90,7 +90,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondary),
+                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                     ),
                   ],
                 ),

@@ -99,16 +99,16 @@ class _AuthFormPanel extends StatelessWidget {
                     width: 44,
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: AppTheme.surfaceAlt,
+                      color: AppTheme.surfaceAltFor(context),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.border),
+                      border: Border.all(color: AppTheme.borderFor(context)),
                     ),
                     child: Image.asset(
                       'assets/logo.png',
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
+                      errorBuilder: (context, error, stackTrace) => Icon(
                         Icons.auto_awesome,
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.textPrimaryFor(context),
                       ),
                     ),
                   ),
@@ -126,7 +126,7 @@ class _AuthFormPanel extends StatelessWidget {
                       Text(
                         'SMART ATTENDANCE',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.textSecondaryFor(context),
                               letterSpacing: 1.6,
                             ),
                       ),
@@ -139,7 +139,7 @@ class _AuthFormPanel extends StatelessWidget {
                 title,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.textPrimaryFor(context),
                     ),
               ),
               AppSpacing.gap8,
@@ -148,7 +148,7 @@ class _AuthFormPanel extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: AppTheme.textSecondary),
+                    ?.copyWith(color: AppTheme.textSecondaryFor(context)),
               ),
               AppSpacing.gap24,
               form,
@@ -158,7 +158,7 @@ class _AuthFormPanel extends StatelessWidget {
               Text(
                 '© hh',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppTheme.muted,
+                      color: AppTheme.mutedFor(context),
                       letterSpacing: 1.2,
                     ),
               ),
@@ -177,18 +177,25 @@ class _AuthMarketingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final panel = Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(isCompact ? 20 : 0),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0F1119),
-            Color(0xFF1A1426),
-            Color(0xFF10211E),
-            Color(0xFF23160C),
-          ],
+          colors: isDark
+              ? const [
+                  Color(0xFF0F1119),
+                  Color(0xFF1A1426),
+                  Color(0xFF10211E),
+                  Color(0xFF23160C),
+                ]
+              : const [
+                  Color(0xFFF6F7FB),
+                  Color(0xFFEFF3F9),
+                  Color(0xFFF6F7FB),
+                ],
         ),
       ),
       child: Padding(
@@ -203,7 +210,7 @@ class _AuthMarketingPanel extends StatelessWidget {
             Text(
               'Smarter Attendance with AI',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
+                    color: AppTheme.textPrimaryFor(context),
                     fontWeight: FontWeight.w700,
                     height: 1.2,
                   ),
@@ -214,7 +221,10 @@ class _AuthMarketingPanel extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: const Color(0xFFE6E8F0), height: 1.5),
+                  ?.copyWith(
+                    color: AppTheme.textSecondaryFor(context),
+                    height: 1.5,
+                  ),
             ),
             AppSpacing.gap16,
           ],
@@ -238,8 +248,8 @@ class _MobilePromoPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: AppTheme.surfaceAlt,
-        border: Border.all(color: AppTheme.border),
+        color: AppTheme.surfaceAltFor(context),
+        border: Border.all(color: AppTheme.borderFor(context)),
       ),
       child: ExpansionTile(
         title: const Text('Why AI Attendance?'),

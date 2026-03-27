@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_reveal.dart';
 import '../../../core/widgets/app_spacing.dart';
@@ -46,7 +44,7 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen> {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppTheme.textSecondary),
+                  ?.copyWith(color: AppTheme.textSecondaryFor(context)),
             ),
           ),
           AppSpacing.gap16,
@@ -73,7 +71,9 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen> {
                         onSelected: (_) => setState(() => _activeFilter = filter),
                         selectedColor: AppTheme.brandGreen.withOpacity(0.2),
                         labelStyle: TextStyle(
-                          color: isSelected ? AppTheme.textPrimary : AppTheme.textSecondary,
+                          color: isSelected
+                              ? AppTheme.textPrimaryFor(context)
+                              : AppTheme.textSecondaryFor(context),
                           fontWeight: FontWeight.w600,
                         ),
                       );
@@ -84,7 +84,7 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen> {
                     height: 180,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.border),
+                      border: Border.all(color: AppTheme.borderFor(context)),
                       gradient: LinearGradient(
                         colors: [
                           AppTheme.brandGreen.withOpacity(0.18),
@@ -101,7 +101,7 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen> {
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
-                            ?.copyWith(color: AppTheme.textSecondary),
+                            ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                       ),
                     ),
                   ),
@@ -159,28 +159,7 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen> {
             },
           ),
           AppSpacing.gap24,
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 900;
-              if (isWide) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _RecentActivityCard()),
-                    const SizedBox(width: 16),
-                    Expanded(child: _QuickActionsCard()),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  _RecentActivityCard(),
-                  AppSpacing.gap16,
-                  _QuickActionsCard(),
-                ],
-              );
-            },
-          ),
+          _RecentActivityCard(),
         ],
       ),
     );
@@ -279,7 +258,7 @@ class _RecentActivityCard extends StatelessWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
+                              ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                         ),
                       ],
                     ),
@@ -289,47 +268,11 @@ class _RecentActivityCard extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: AppTheme.textSecondary),
+                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                   ),
                 ],
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickActionsCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          AppSpacing.gap16,
-          AppButton(
-            label: 'Take Attendance',
-            onPressed: () => context.go('/attendance'),
-          ),
-          AppSpacing.gap12,
-          AppButton(
-            label: 'View Students',
-            onPressed: () => context.go('/students'),
-            isPrimary: false,
-          ),
-          AppSpacing.gap12,
-          AppButton(
-            label: 'View Reports',
-            onPressed: () => context.go('/reports'),
-            isPrimary: false,
-          ),
         ],
       ),
     );

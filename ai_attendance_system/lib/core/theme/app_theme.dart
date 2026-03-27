@@ -13,6 +13,28 @@ class AppTheme {
   static const textSecondary = Color(0xFFB1B9C6);
   static const muted = Color(0xFF7C8698);
   static const danger = Color(0xFFFF5C5C);
+  static const lightSurface = Color(0xFFF4F6FA);
+  static const lightSurfaceAlt = Color(0xFFEFF2F7);
+  static const lightCard = Color(0xFFFFFFFF);
+  static const lightBorder = Color(0xFFD7DEE8);
+  static const lightTextPrimary = Color(0xFF101318);
+  static const lightTextSecondary = Color(0xFF5C667A);
+  static const lightMuted = Color(0xFF7A8499);
+
+  static bool isDarkTheme(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color surfaceCardFor(BuildContext context) =>
+      isDarkTheme(context) ? surfaceCard : lightCard;
+  static Color surfaceAltFor(BuildContext context) =>
+      isDarkTheme(context) ? surfaceAlt : lightSurfaceAlt;
+  static Color borderFor(BuildContext context) =>
+      isDarkTheme(context) ? border : lightBorder;
+  static Color textPrimaryFor(BuildContext context) =>
+      isDarkTheme(context) ? textPrimary : lightTextPrimary;
+  static Color textSecondaryFor(BuildContext context) =>
+      isDarkTheme(context) ? textSecondary : lightTextSecondary;
+  static Color mutedFor(BuildContext context) => isDarkTheme(context) ? muted : lightMuted;
 
   static ThemeData get light {
     final base = ThemeData(
@@ -25,8 +47,11 @@ class AppTheme {
     );
 
     return base.copyWith(
-      textTheme: GoogleFonts.soraTextTheme(base.textTheme),
-      scaffoldBackgroundColor: const Color(0xFFF3F4F7),
+      textTheme: GoogleFonts.soraTextTheme(base.textTheme).apply(
+        bodyColor: lightTextPrimary,
+        displayColor: lightTextPrimary,
+      ),
+      scaffoldBackgroundColor: lightSurface,
       cardTheme: const CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -53,13 +78,20 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE1E6EE)),
+          borderSide: const BorderSide(color: lightBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: brandGreen, width: 1.2),
         ),
       ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: lightCard,
+        selectedItemColor: brandGreen,
+        unselectedItemColor: lightTextSecondary,
+        type: BottomNavigationBarType.fixed,
+      ),
+      dividerColor: lightBorder,
     );
   }
 

@@ -67,7 +67,7 @@ class ReportsScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppTheme.brandGreen.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.border),
+                    border: Border.all(color: AppTheme.borderFor(context)),
                   ),
                   child: Center(
                     child: Text(
@@ -75,7 +75,7 @@ class ReportsScreen extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondary),
+                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                     ),
                   ),
                 ),
@@ -111,7 +111,7 @@ class ReportsScreen extends StatelessWidget {
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
-                                    ?.copyWith(color: AppTheme.textSecondary)),
+                                    ?.copyWith(color: AppTheme.textSecondaryFor(context))),
                           ],
                         ),
                         _StatusChip(status: report.status),

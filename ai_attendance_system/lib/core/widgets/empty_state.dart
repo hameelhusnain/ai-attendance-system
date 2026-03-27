@@ -14,7 +14,7 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inbox_outlined, size: 40, color: AppTheme.muted),
+          Icon(Icons.inbox_outlined, size: 40, color: AppTheme.mutedFor(context)),
           AppSpacing.gap12,
           Text(
             title,
@@ -27,7 +27,7 @@ class EmptyState extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
-                ?.copyWith(color: AppTheme.muted),
+                ?.copyWith(color: AppTheme.mutedFor(context)),
           ),
         ],
       ),
