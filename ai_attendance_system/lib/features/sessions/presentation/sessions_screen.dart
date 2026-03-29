@@ -121,7 +121,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                     final isWide = constraints.maxWidth > 720;
                     final filters = [
                       DropdownButtonFormField<String>(
-                        value: _classFilter,
+                        initialValue: _classFilter,
                         decoration: const InputDecoration(labelText: 'Class'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),
@@ -134,7 +134,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                             setState(() => _classFilter = value ?? 'All'),
                       ),
                       DropdownButtonFormField<String>(
-                        value: _semesterFilter,
+                        initialValue: _semesterFilter,
                         decoration: const InputDecoration(labelText: 'Semester'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),
@@ -145,7 +145,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                             setState(() => _semesterFilter = value ?? 'All'),
                       ),
                       DropdownButtonFormField<String>(
-                        value: _batchFilter,
+                        initialValue: _batchFilter,
                         decoration: const InputDecoration(labelText: 'Batch'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),
@@ -157,7 +157,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                             setState(() => _batchFilter = value ?? 'All'),
                       ),
                       DropdownButtonFormField<String>(
-                        value: _groupFilter,
+                        initialValue: _groupFilter,
                         decoration: const InputDecoration(labelText: 'Group'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),
@@ -169,7 +169,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                             setState(() => _groupFilter = value ?? 'All'),
                       ),
                       DropdownButtonFormField<String>(
-                        value: _departmentFilter,
+                        initialValue: _departmentFilter,
                         decoration: const InputDecoration(labelText: 'Department'),
                         items: const [
                           DropdownMenuItem(value: 'All', child: Text('All')),

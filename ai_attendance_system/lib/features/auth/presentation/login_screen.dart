@@ -4,7 +4,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/auth_layout.dart';
-import '../../../shared/services/auth_service.dart';
+import '../../../shared/services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _apiService = ApiService();
   bool _loading = false;
 
   @override
@@ -30,13 +30,25 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    await _authService.login(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
-    if (!mounted) return;
-    setState(() => _loading = false);
-    context.go('/dashboard');
+    try {
+      final token = await _apiService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      if (token.isNotEmpty) {
+        context.go('/dashboard');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   @override
@@ -77,6 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
               label: _loading ? 'Signing in...' : 'Sign In',
               onPressed: _loading ? null : _submit,
             ),
+            if (_loading) ...[
+              AppSpacing.gap12,
+              const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ],
           ],
         ),
       ),
