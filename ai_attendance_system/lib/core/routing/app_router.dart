@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../features/auth/presentation/login_screen.dart';
-import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
 import '../../features/students/presentation/student_detail_screen.dart';
@@ -22,11 +21,6 @@ class AppRouter {
         path: '/',
         name: 'login',
         pageBuilder: (context, state) => _fade(const LoginScreen()),
-      ),
-      GoRoute(
-        path: '/signup',
-        name: 'signup',
-        pageBuilder: (context, state) => _fade(const SignupScreen()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(

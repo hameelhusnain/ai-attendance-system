@@ -103,11 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
       footer: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text("Don't have an account?"),
-          TextButton(
-            onPressed: () => context.go('/signup'),
-            child: const Text('Sign Up'),
-          ),
+          const Text("Admin creates your account."),
         ],
       ),
     );
