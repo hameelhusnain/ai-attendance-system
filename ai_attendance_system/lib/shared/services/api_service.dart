@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'session_store.dart';
 
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
@@ -17,6 +18,9 @@ class ApiService {
   }
 
   Map<String, String> _headers({bool auth = true}) {
+    if (auth && _token == null && SessionStore.token != null) {
+      _token = SessionStore.token;
+    }
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -28,6 +32,9 @@ class ApiService {
   }
 
   Map<String, String> _authHeaders() {
+    if (_token == null && SessionStore.token != null) {
+      _token = SessionStore.token;
+    }
     final headers = <String, String>{'Accept': 'application/json'};
     if (_token != null) {
       headers['Authorization'] = 'Bearer $_token';

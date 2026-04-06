@@ -5,6 +5,7 @@ import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/auth_layout.dart';
 import '../../../shared/services/api_service.dart';
+import '../../../shared/services/session_store.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,12 +32,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final rawInput = _emailController.text.trim();
       final token = await _apiService.login(
-        _emailController.text.trim(),
+        rawInput,
         _passwordController.text,
       );
       if (!mounted) return;
       if (token.isNotEmpty) {
+        SessionStore.token = token;
+        SessionStore.displayName =
+            rawInput.contains('@') ? rawInput.split('@').first : rawInput;
         context.go('/dashboard');
       }
     } catch (error) {
