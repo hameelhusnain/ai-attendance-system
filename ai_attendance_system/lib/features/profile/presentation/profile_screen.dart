@@ -3,6 +3,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
+import '../../../shared/services/mock_data_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -11,43 +12,42 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
+    final students = MockDataService.students;
+    final total = students.length;
+    final present = students.where((s) => s.status == 'Active').length;
+    final absent = total - present;
+    final missing = students.where((s) => s.status != 'Active').toList();
+
     return Padding(
       padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Profile',
+            'Session Report',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
           ),
           AppSpacing.gap16,
           AppCard(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppTheme.brandGreen,
-                  child: Icon(Icons.person, color: Colors.white),
+                Text(
+                  'Today’s Attendance Summary',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                AppSpacing.gap12,
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 12,
                   children: [
-                    Text(
-                      'Admin',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    Text(
-                      'admin@campus.edu',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                    ),
+                    _ReportChip(label: 'Total', value: total.toString()),
+                    _ReportChip(label: 'Present', value: present.toString()),
+                    _ReportChip(label: 'Absent', value: absent.toString()),
                   ],
                 ),
               ],
@@ -56,22 +56,86 @@ class ProfileScreen extends StatelessWidget {
           AppSpacing.gap16,
           AppCard(
             child: Column(
-              children: const [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.settings_outlined),
-                  title: Text('Account Settings'),
-                  trailing: Icon(Icons.chevron_right),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Missing Students',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
-                Divider(height: 24),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.lock_outline),
-                  title: Text('Security'),
-                  trailing: Icon(Icons.chevron_right),
-                ),
+                AppSpacing.gap12,
+                if (missing.isEmpty)
+                  Text(
+                    'No missing students in this session.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                  )
+                else
+                  ListView.separated(
+                    itemCount: missing.length,
+                    separatorBuilder: (_, _) => const Divider(height: 24),
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemBuilder: (context, index) {
+                      final student = missing[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: AppTheme.accentOrange.withOpacity(0.14),
+                          child: Text(student.name.substring(0, 1)),
+                        ),
+                        title: Text(student.name),
+                        subtitle: Text(student.className),
+                        trailing: Text(
+                          student.status,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondaryFor(context),
+                              ),
+                        ),
+                      );
+                    },
+                  ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportChip extends StatelessWidget {
+  const _ReportChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.brandGreen.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ],
       ),

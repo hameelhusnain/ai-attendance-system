@@ -7,9 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
-import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../shared/models/session_history.dart';
 import '../../../shared/services/mock_data_service.dart';
 import 'session_detail_screen.dart';
 
@@ -23,13 +21,8 @@ class SessionsScreen extends StatefulWidget {
 class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProviderStateMixin {
   bool _running = false;
   int _markedCount = 0;
+  bool _stopping = false;
   late final AnimationController _blobController;
-  final _searchController = TextEditingController();
-  String _classFilter = 'All';
-  String _semesterFilter = 'All';
-  String _batchFilter = 'All';
-  String _groupFilter = 'All';
-  String _departmentFilter = 'All';
 
   @override
   void initState() {
@@ -42,48 +35,41 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
   @override
   void dispose() {
     _blobController.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
-  void _toggleSession() {
+  void _startSession() {
     setState(() {
-      _running = !_running;
-      if (_running) {
-        _markedCount = 0;
-      }
+      _running = true;
+      _markedCount = 0;
     });
   }
 
-  List<SessionHistory> _filteredSessions() {
-    final query = _searchController.text.trim().toLowerCase();
-    return MockDataService.sessions.where((session) {
-      final matchesQuery = query.isEmpty ||
-          session.title.toLowerCase().contains(query) ||
-          session.className.toLowerCase().contains(query) ||
-          session.department.toLowerCase().contains(query) ||
-          session.label.toLowerCase().contains(query);
-      final matchesClass = _classFilter == 'All' || session.className == _classFilter;
-      final matchesSemester =
-          _semesterFilter == 'All' || session.semester == _semesterFilter;
-      final matchesBatch = _batchFilter == 'All' || session.batch == _batchFilter;
-      final matchesGroup = _groupFilter == 'All' || session.group == _groupFilter;
-      final matchesDepartment =
-          _departmentFilter == 'All' || session.department == _departmentFilter;
-      return matchesQuery &&
-          matchesClass &&
-          matchesSemester &&
-          matchesBatch &&
-          matchesGroup &&
-          matchesDepartment;
-    }).toList();
+  Future<void> _stopSession() async {
+    if (_stopping) return;
+    setState(() => _stopping = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    setState(() {
+      _stopping = false;
+      _running = false;
+    });
+    context.go('/profile');
   }
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
-    final sessions = _filteredSessions();
+    final sessions = MockDataService.sessions;
 
     return SingleChildScrollView(
       padding: padding,
@@ -102,129 +88,19 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Search Sessions',
+                  'Recent Closed Sessions',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                 ),
-                AppSpacing.gap16,
-                AppTextField(
-                  label: 'Search by class, title, or department',
-                  hintText: 'Type a session label or class',
-                  controller: _searchController,
-                  prefixIcon: const Icon(Icons.search),
-                  onChanged: (_) => setState(() {}),
-                ),
-                AppSpacing.gap16,
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isWide = constraints.maxWidth > 720;
-                    final filters = [
-                      DropdownButtonFormField<String>(
-                        initialValue: _classFilter,
-                        decoration: const InputDecoration(labelText: 'Class'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(value: 'CS-301', child: Text('CS-301')),
-                          DropdownMenuItem(value: 'CS-302', child: Text('CS-302')),
-                          DropdownMenuItem(value: 'CS-303', child: Text('CS-303')),
-                          DropdownMenuItem(value: 'CS-304', child: Text('CS-304')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _classFilter = value ?? 'All'),
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _semesterFilter,
-                        decoration: const InputDecoration(labelText: 'Semester'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(value: 'Spring', child: Text('Spring')),
-                          DropdownMenuItem(value: 'Fall', child: Text('Fall')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _semesterFilter = value ?? 'All'),
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _batchFilter,
-                        decoration: const InputDecoration(labelText: 'Batch'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(value: '2024', child: Text('2024')),
-                          DropdownMenuItem(value: '2023', child: Text('2023')),
-                          DropdownMenuItem(value: '2022', child: Text('2022')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _batchFilter = value ?? 'All'),
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _groupFilter,
-                        decoration: const InputDecoration(labelText: 'Group'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(value: 'A', child: Text('Group A')),
-                          DropdownMenuItem(value: 'B', child: Text('Group B')),
-                          DropdownMenuItem(value: 'C', child: Text('Group C')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _groupFilter = value ?? 'All'),
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _departmentFilter,
-                        decoration: const InputDecoration(labelText: 'Department'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(
-                              value: 'Computer Science', child: Text('Computer Science')),
-                          DropdownMenuItem(value: 'IT', child: Text('IT')),
-                          DropdownMenuItem(value: 'SE', child: Text('Software Eng')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _departmentFilter = value ?? 'All'),
-                      ),
-                    ];
-
-                    if (isWide) {
-                      return Row(
-                        children: [
-                          Expanded(child: filters[0]),
-                          const SizedBox(width: 12),
-                          Expanded(child: filters[1]),
-                          const SizedBox(width: 12),
-                          Expanded(child: filters[2]),
-                          const SizedBox(width: 12),
-                          Expanded(child: filters[3]),
-                          const SizedBox(width: 12),
-                          Expanded(child: filters[4]),
-                        ],
-                      );
-                    }
-
-                    return Column(
-                      children: [
-                        filters[0],
-                        AppSpacing.gap12,
-                        filters[1],
-                        AppSpacing.gap12,
-                        filters[2],
-                        AppSpacing.gap12,
-                        filters[3],
-                        AppSpacing.gap12,
-                        filters[4],
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          AppSpacing.gap16,
-          AppCard(
-            child: sessions.isEmpty
-                ? const EmptyState(
-                    title: 'No sessions found',
-                    message: 'Try adjusting your filters or search query.',
+                AppSpacing.gap12,
+                if (sessions.isEmpty)
+                  const EmptyState(
+                    title: 'No recent sessions',
+                    message: 'Closed sessions will appear here.',
                   )
-                : ListView.separated(
+                else
+                  ListView.separated(
                     itemCount: sessions.length,
                     separatorBuilder: (_, _) => const Divider(height: 24),
                     physics: const NeverScrollableScrollPhysics(),
@@ -250,6 +126,8 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                       );
                     },
                   ),
+              ],
+            ),
           ),
           AppSpacing.gap20,
           Center(
@@ -259,7 +137,9 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                 _AnimatedBlob(controller: _blobController),
                 _SessionButton(
                   running: _running,
-                  onTap: _toggleSession,
+                  onTap: _stopping
+                      ? null
+                      : () => _running ? _stopSession() : _startSession(),
                 ),
               ],
             ),
@@ -333,7 +213,7 @@ class _SessionButton extends StatelessWidget {
   const _SessionButton({required this.running, required this.onTap});
 
   final bool running;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
