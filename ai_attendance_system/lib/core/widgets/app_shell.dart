@@ -402,6 +402,7 @@ class _BottomNav extends StatelessWidget {
   int _indexForLocation(String location) {
     if (location.startsWith('/sessions')) return 1;
     if (location.startsWith('/search')) return 2;
+    if (location.startsWith('/profile')) return 3;
     return 0;
   }
 
@@ -426,6 +427,9 @@ class _BottomNav extends StatelessWidget {
           case 2:
             context.go('/search');
             break;
+          case 3:
+            context.go('/profile');
+            break;
         }
       },
       type: BottomNavigationBarType.fixed,
@@ -433,6 +437,7 @@ class _BottomNav extends StatelessWidget {
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
         BottomNavigationBarItem(icon: Icon(Icons.timer_outlined), label: 'Sessions'),
         BottomNavigationBarItem(icon: Icon(Icons.search_outlined), label: 'Search'),
+        BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: 'Report'),
       ],
     );
   }

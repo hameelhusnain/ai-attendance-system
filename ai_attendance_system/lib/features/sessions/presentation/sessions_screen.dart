@@ -48,16 +48,8 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
   Future<void> _stopSession() async {
     if (_stopping) return;
     setState(() => _stopping = true);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-    );
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
-    Navigator.of(context).pop();
     setState(() {
       _stopping = false;
       _running = false;
@@ -71,140 +63,154 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
     final sessions = MockDataService.sessions;
 
-    return SingleChildScrollView(
-      padding: padding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Sessions',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          AppSpacing.gap16,
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Recent Closed Sessions',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                AppSpacing.gap12,
-                if (sessions.isEmpty)
-                  const EmptyState(
-                    title: 'No recent sessions',
-                    message: 'Closed sessions will appear here.',
-                  )
-                else
-                  ListView.separated(
-                    itemCount: sessions.length,
-                    separatorBuilder: (_, _) => const Divider(height: 24),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemBuilder: (context, index) {
-                      final session = sessions[index];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(session.title),
-                        subtitle: Text(
-                          '${session.className} • ${session.semester} • ${session.batch} • ${session.group}',
-                        ),
-                        trailing: Text(
-                          '${session.percentage.toStringAsFixed(1)}%',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.textSecondaryFor(context),
-                              ),
-                        ),
-                        onTap: () => context.go(
-                          '/sessions/${session.id}',
-                          extra: SessionDetailArgs(session: session),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ),
-          AppSpacing.gap20,
-          Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                _AnimatedBlob(controller: _blobController),
-                _SessionButton(
-                  running: _running,
-                  onTap: _stopping
-                      ? null
-                      : () => _running ? _stopSession() : _startSession(),
-                ),
-              ],
-            ),
-          ),
-          AppSpacing.gap16,
-          AppCard(
-            child: Row(
-              children: [
-                Icon(
-                  _running ? Icons.videocam : Icons.videocam_off,
-                  color: _running ? AppTheme.brandGreen : AppTheme.textSecondaryFor(context),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _running ? 'Session running' : 'Session stopped',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: padding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sessions',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              AppSpacing.gap16,
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recent Closed Sessions',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    AppSpacing.gap12,
+                    if (sessions.isEmpty)
+                      const EmptyState(
+                        title: 'No recent sessions',
+                        message: 'Closed sessions will appear here.',
+                      )
+                    else
+                      ListView.separated(
+                        itemCount: sessions.length,
+                        separatorBuilder: (_, _) => const Divider(height: 24),
+                        physics: const NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        itemBuilder: (context, index) {
+                          final session = sessions[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(session.title),
+                            subtitle: Text(
+                              '${session.className} • ${session.semester} • ${session.batch} • ${session.group}',
                             ),
-                      ),
-                      Text(
-                        _running
-                            ? 'Camera active • Attendance counting in progress'
-                            : 'Press start to begin marking attendance',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: (_running ? AppTheme.brandGreen : AppTheme.accentOrange)
-                        .withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        _markedCount.toString(),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
+                            trailing: Text(
+                              '${session.percentage.toStringAsFixed(1)}%',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondaryFor(context),
+                                  ),
                             ),
+                            onTap: () => context.go(
+                              '/sessions/${session.id}',
+                              extra: SessionDetailArgs(session: session),
+                            ),
+                          );
+                        },
                       ),
-                      Text(
-                        'Marked',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
+              AppSpacing.gap20,
+              Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _AnimatedBlob(controller: _blobController),
+                    _SessionButton(
+                      running: _running,
+                      onTap: _stopping
+                          ? null
+                          : () => _running ? _stopSession() : _startSession(),
+                    ),
+                  ],
+                ),
+              ),
+              AppSpacing.gap16,
+              AppCard(
+                child: Row(
+                  children: [
+                    Icon(
+                      _running ? Icons.videocam : Icons.videocam_off,
+                      color:
+                          _running ? AppTheme.brandGreen : AppTheme.textSecondaryFor(context),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _running ? 'Session running' : 'Session stopped',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          Text(
+                            _running
+                                ? 'Camera active • Attendance counting in progress'
+                                : 'Press start to begin marking attendance',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: (_running ? AppTheme.brandGreen : AppTheme.accentOrange)
+                            .withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            _markedCount.toString(),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          Text(
+                            'Marked',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_stopping)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.35),
+              child: const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
