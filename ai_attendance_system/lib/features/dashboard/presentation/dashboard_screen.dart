@@ -127,31 +127,28 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen>
                   );
                 }
 
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = constraints.maxWidth;
-                    final columns = width > 1100
-                        ? 3
-                        : width > 720
-                            ? 2
-                            : 1;
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 2.2,
-                      ),
-                      itemCount: classes.length,
-                      itemBuilder: (context, index) {
-                        final item = classes[index];
-                        final name = _readValue(item, ['name', 'class_name', 'title'], 'Class');
-                        final time = _readValue(item, ['time', 'start_time'], '');
-                        final room = _readValue(item, ['room', 'location'], '');
-                        return _ClassCard(name: name, time: time, room: room);
-                      },
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: classes.length,
+                  separatorBuilder: (_, _) => AppSpacing.gap12,
+                  itemBuilder: (context, index) {
+                    final item = classes[index];
+                    final name = _readValue(item, ['name', 'class_name', 'title'], 'Class');
+                    final tutor = _readValue(item, [
+                      'tutor',
+                      'teacher',
+                      'teacher_name',
+                      'instructor',
+                      'assigned_teacher',
+                    ], 'Tutor');
+                    final time = _readValue(item, ['time', 'start_time'], '');
+                    final room = _readValue(item, ['room', 'location'], '');
+                    return _ClassCard(
+                      name: name,
+                      tutor: tutor,
+                      time: time,
+                      room: room,
                     );
                   },
                 );
@@ -165,9 +162,15 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen>
 }
 
 class _ClassCard extends StatelessWidget {
-  const _ClassCard({required this.name, required this.time, required this.room});
+  const _ClassCard({
+    required this.name,
+    required this.tutor,
+    required this.time,
+    required this.room,
+  });
 
   final String name;
+  final String tutor;
   final String time;
   final String room;
 
@@ -177,19 +180,18 @@ class _ClassCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            height: 44,
-            width: 44,
+            height: 48,
+            width: 48,
             decoration: BoxDecoration(
-              color: AppTheme.brandGreen.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.brandGreen.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.class_outlined, color: AppTheme.brandGreen),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   name,
@@ -197,19 +199,38 @@ class _ClassCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                 ),
-                if (time.isNotEmpty || room.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                const SizedBox(height: 4),
+                Text(
+                  'Tutor: $tutor',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                ),
+              ],
+            ),
+          ),
+          if (time.isNotEmpty || room.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (time.isNotEmpty)
                   Text(
-                    [time, room].where((value) => value.trim().isNotEmpty).join(' • '),
+                    time,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                if (room.isNotEmpty)
+                  Text(
+                    room,
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
                         ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                   ),
-                ],
               ],
             ),
-          ),
         ],
       ),
     );
