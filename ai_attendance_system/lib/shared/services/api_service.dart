@@ -24,6 +24,7 @@ class ApiService {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
     };
     if (auth && _token != null) {
       headers['Authorization'] = 'Bearer $_token';
@@ -35,7 +36,10 @@ class ApiService {
     if (_token == null && SessionStore.token != null) {
       _token = SessionStore.token;
     }
-    final headers = <String, String>{'Accept': 'application/json'};
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+    };
     if (_token != null) {
       headers['Authorization'] = 'Bearer $_token';
     }
