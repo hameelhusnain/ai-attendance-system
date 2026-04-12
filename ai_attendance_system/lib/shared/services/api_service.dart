@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'session_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
@@ -15,6 +16,13 @@ class ApiService {
 
   void setToken(String token) {
     _token = token;
+  }
+
+  Future<void> logout() async {
+    _token = null;
+    SessionStore.token = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
   }
 
   String get baseUrl {
@@ -178,6 +186,60 @@ class ApiService {
       headers: _headers(),
       body: jsonEncode(data),
     );
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> uploadStudentPhoto(String studentId, File file) async {
+    final uri = Uri.parse('${baseUrl}/students/$studentId/photos');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll(_authHeaders())
+      ..files.add(await http.MultipartFile.fromPath('file', file.path));
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getStudentPhotos(String studentId) async {
+    final uri = Uri.parse('${baseUrl}/students/$studentId/photos');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getStudentsNoEmbedding() async {
+    final uri = Uri.parse('${baseUrl}/students/no-embedding');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> updateStudentPhotoEmbedding(
+    String studentId,
+    String photoId,
+    Map<String, dynamic> data,
+  ) async {
+    final uri = Uri.parse('${baseUrl}/students/$studentId/photos/$photoId/embedding');
+    final response = await _client.put(
+      uri,
+      headers: _headers(),
+      body: jsonEncode(data),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getStudentById(String studentId) async {
+    final uri = Uri.parse('${baseUrl}/students/$studentId');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getClassById(String classId) async {
+    final uri = Uri.parse('${baseUrl}/classes/$classId');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getSessionById(String sessionId) async {
+    final uri = Uri.parse('${baseUrl}/sessions/$sessionId');
+    final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 }

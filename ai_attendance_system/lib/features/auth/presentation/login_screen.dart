@@ -6,6 +6,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/auth_layout.dart';
 import '../../../shared/services/api_service.dart';
 import '../../../shared/services/session_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,6 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       if (token.isNotEmpty) {
         SessionStore.token = token;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
         SessionStore.displayName =
             rawInput.contains('@') ? rawInput.split('@').first : rawInput;
         context.go('/dashboard');

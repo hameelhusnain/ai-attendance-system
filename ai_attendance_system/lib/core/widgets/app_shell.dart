@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../shared/services/auth_service.dart';
+import '../../shared/services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 import 'app_background.dart';
@@ -482,7 +482,7 @@ class _AppEndDrawer extends StatelessWidget {
               title: const Text('Logout'),
               onTap: () async {
                 Navigator.of(context).pop();
-                await AuthService().logout();
+                await ApiService().logout();
                 if (context.mounted) {
                   context.go('/');
                 }
