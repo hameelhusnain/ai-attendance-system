@@ -131,7 +131,7 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen>
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: classes.length,
-                  separatorBuilder: (_, _) => AppSpacing.gap12,
+                  separatorBuilder: (_, __) => AppSpacing.gap12,
                   itemBuilder: (context, index) {
                     final item = classes[index];
                     final name = _readValue(item, ['name', 'class_name', 'title'], 'Class');

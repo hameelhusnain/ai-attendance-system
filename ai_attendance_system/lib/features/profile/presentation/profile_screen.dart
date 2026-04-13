@@ -66,7 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final total = students.length;
     final present = students.where((s) => s.status == 'Active').length;
     final absent = total - present;
-    final missing = students.where((s) => s.status != 'Active').toList();
+    final breakdown = _reportStudents;
 
     return SingleChildScrollView(
       padding: padding,
@@ -79,29 +79,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   fontWeight: FontWeight.w700,
                 ),
           ),
+          AppSpacing.gap8,
+          Text(
+            'Attendance Report • Today 9:00 AM',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+          ),
           AppSpacing.gap16,
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Today’s Attendance Summary',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  title: 'Present',
+                  value: present.toString(),
+                  color: AppTheme.brandGreen,
                 ),
-                AppSpacing.gap12,
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 12,
-                  children: [
-                    _ReportChip(label: 'Total', value: total.toString()),
-                    _ReportChip(label: 'Present', value: present.toString()),
-                    _ReportChip(label: 'Absent', value: absent.toString()),
-                  ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  title: 'Absent',
+                  value: absent.toString(),
+                  color: AppTheme.accentOrange,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           AppSpacing.gap16,
           AppCard(
@@ -109,45 +113,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Missing Students',
+                  'Student Breakdown',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                 ),
                 AppSpacing.gap12,
-                if (missing.isEmpty)
-                  Text(
-                    'No missing students in this session.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                  )
-                else
-                  ListView.separated(
-                    itemCount: missing.length,
-                    separatorBuilder: (_, _) => const Divider(height: 24),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemBuilder: (context, index) {
-                      final student = missing[index];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: AppTheme.accentOrange.withOpacity(0.14),
-                          child: Text(student.name.substring(0, 1)),
-                        ),
-                        title: Text(student.name),
-                        subtitle: Text(student.className),
-                        trailing: Text(
-                          student.status,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.textSecondaryFor(context),
-                              ),
-                        ),
-                      );
-                    },
-                  ),
+                ListView.separated(
+                  itemCount: breakdown.length,
+                  separatorBuilder: (_, _) => const Divider(height: 24),
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemBuilder: (context, index) {
+                    final student = breakdown[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: student.color.withOpacity(0.14),
+                        child: Text(student.initials),
+                      ),
+                      title: Text(student.name),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StatusPill(label: student.status, color: student.color),
+                          const SizedBox(width: 8),
+                          Icon(
+                            student.present ? Icons.check_circle : Icons.cancel,
+                            color: student.present
+                                ? AppTheme.brandGreen
+                                : AppTheme.accentOrange,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                AppSpacing.gap12,
+                _EndpointPill(label: 'GET  /attendance/sessions/{id}/report'),
               ],
             ),
           ),
@@ -183,34 +187,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class _ReportChip extends StatelessWidget {
-  const _ReportChip({required this.label, required this.value});
+class _StatCard extends StatelessWidget {
+  const _StatCard({required this.title, required this.value, required this.color});
 
-  final String label;
+  final String title;
   final String value;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.brandGreen.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-      ),
+    return AppCard(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            title,
             style: Theme.of(context)
                 .textTheme
                 .labelSmall
                 ?.copyWith(color: AppTheme.textSecondaryFor(context)),
           ),
+          AppSpacing.gap8,
           Text(
             value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: color,
                 ),
           ),
         ],
@@ -218,3 +220,100 @@ class _ReportChip extends StatelessWidget {
     );
   }
 }
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _EndpointPill extends StatelessWidget {
+  const _EndpointPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceAltFor(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.borderFor(context)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context)
+            .textTheme
+            .labelSmall
+            ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+      ),
+    );
+  }
+}
+
+class _ReportStudent {
+  const _ReportStudent({
+    required this.name,
+    required this.status,
+    required this.present,
+    required this.color,
+  });
+
+  final String name;
+  final String status;
+  final bool present;
+  final Color color;
+
+  String get initials {
+    final parts = name.split(' ');
+    if (parts.length == 1) return parts.first.substring(0, 1);
+    return parts.take(2).map((part) => part.substring(0, 1)).join();
+  }
+}
+
+const List<_ReportStudent> _reportStudents = [
+  _ReportStudent(
+    name: 'Ahmed Khan',
+    status: 'Engaged',
+    present: true,
+    color: AppTheme.brandGreen,
+  ),
+  _ReportStudent(
+    name: 'Sara Riaz',
+    status: 'Using Phone',
+    present: true,
+    color: AppTheme.accentOrange,
+  ),
+  _ReportStudent(
+    name: 'Usman Malik',
+    status: 'Sleeping',
+    present: true,
+    color: AppTheme.accentPurple,
+  ),
+  _ReportStudent(
+    name: 'Fatima Ali',
+    status: 'Absent',
+    present: false,
+    color: AppTheme.danger,
+  ),
+];
