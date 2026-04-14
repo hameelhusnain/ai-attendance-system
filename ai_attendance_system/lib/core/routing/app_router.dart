@@ -10,7 +10,6 @@ import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/sessions/presentation/sessions_screen.dart';
 import '../../features/sessions/presentation/session_detail_screen.dart';
-import '../../features/search/presentation/search_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/about/presentation/about_screen.dart';
 
@@ -50,11 +49,6 @@ class AppRouter {
                 },
               ),
             ],
-          ),
-          GoRoute(
-            path: '/search',
-            name: 'search',
-            pageBuilder: (context, state) => _fade(const SearchScreen()),
           ),
           GoRoute(
             path: '/profile',

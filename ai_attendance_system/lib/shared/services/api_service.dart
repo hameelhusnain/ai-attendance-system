@@ -242,4 +242,16 @@ class ApiService {
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
+
+  Future<dynamic> getAttendanceSessionReport(String sessionId) async {
+    final uri = Uri.parse('${baseUrl}/attendance/sessions/$sessionId/report');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getStudentAttendanceHistory(String studentId) async {
+    final uri = Uri.parse('${baseUrl}/attendance/students/$studentId/history');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
 }

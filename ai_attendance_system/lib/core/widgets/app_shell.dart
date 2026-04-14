@@ -79,8 +79,6 @@ class AppShell extends StatelessWidget {
         return 'Settings';
       case '/sessions':
         return 'Sessions';
-      case '/search':
-        return 'Search';
       case '/profile':
         return 'Report';
       case '/about':
@@ -261,7 +259,6 @@ class AppSidebar extends StatelessWidget {
   final List<_NavItem> items = const [
     _NavItem(label: 'Dashboard', icon: Icons.dashboard_outlined, route: '/dashboard'),
     _NavItem(label: 'Sessions', icon: Icons.timer_outlined, route: '/sessions'),
-    _NavItem(label: 'Search', icon: Icons.search_outlined, route: '/search'),
     _NavItem(label: 'Report', icon: Icons.bar_chart_outlined, route: '/profile'),
     _NavItem(label: 'About', icon: Icons.info_outline, route: '/about'),
   ];
@@ -401,8 +398,7 @@ class _BottomNav extends StatelessWidget {
 
   int _indexForLocation(String location) {
     if (location.startsWith('/sessions')) return 1;
-    if (location.startsWith('/search')) return 2;
-    if (location.startsWith('/profile')) return 3;
+    if (location.startsWith('/profile')) return 2;
     return 0;
   }
 
@@ -425,9 +421,6 @@ class _BottomNav extends StatelessWidget {
             context.go('/sessions');
             break;
           case 2:
-            context.go('/search');
-            break;
-          case 3:
             context.go('/profile');
             break;
         }
@@ -436,7 +429,6 @@ class _BottomNav extends StatelessWidget {
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
         BottomNavigationBarItem(icon: Icon(Icons.timer_outlined), label: 'Sessions'),
-        BottomNavigationBarItem(icon: Icon(Icons.search_outlined), label: 'Search'),
         BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: 'Report'),
       ],
     );
