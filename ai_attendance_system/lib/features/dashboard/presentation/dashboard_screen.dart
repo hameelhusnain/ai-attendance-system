@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
@@ -149,6 +150,12 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen>
                       tutor: tutor,
                       time: time,
                       room: room,
+                      onTap: () {
+                        SessionStore.selectedClass = Map<String, dynamic>.from(
+                          item is Map<String, dynamic> ? item : <String, dynamic>{},
+                        );
+                        context.go('/sessions');
+                      },
                     );
                   },
                 );
@@ -167,71 +174,82 @@ class _ClassCard extends StatelessWidget {
     required this.tutor,
     required this.time,
     required this.room,
+    required this.onTap,
   });
 
   final String name;
   final String tutor;
   final String time;
   final String room;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      child: Row(
-        children: [
-          Container(
-            height: 48,
-            width: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.brandGreen.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.class_outlined, color: AppTheme.brandGreen),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              Container(
+                height: 48,
+                width: 48,
+                decoration: BoxDecoration(
+                  color: AppTheme.brandGreen.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.class_outlined, color: AppTheme.brandGreen),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tutor: $tutor',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                    ),
+                  ],
+                ),
+              ),
+              if (time.isNotEmpty || room.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (time.isNotEmpty)
+                      Text(
+                        time,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
+                    if (room.isNotEmpty)
+                      Text(
+                        room,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tutor: $tutor',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                ),
-              ],
-            ),
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, color: AppTheme.textSecondaryFor(context)),
+            ],
           ),
-          if (time.isNotEmpty || room.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (time.isNotEmpty)
-                  Text(
-                    time,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                if (room.isNotEmpty)
-                  Text(
-                    room,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                  ),
-              ],
-            ),
-        ],
+        ),
       ),
     );
   }

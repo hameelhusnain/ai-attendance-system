@@ -9,6 +9,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../shared/services/mock_data_service.dart';
+import '../../../shared/services/session_store.dart';
 import 'session_detail_screen.dart';
 
 class SessionsScreen extends StatefulWidget {
@@ -54,7 +55,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       _stopping = false;
       _running = false;
     });
-    context.go('/profile');
+    context.go('/reports');
   }
 
   @override
@@ -62,6 +63,18 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
     final sessions = MockDataService.sessions;
+    final selectedClass = SessionStore.selectedClass;
+    final className = _readValue(selectedClass, ['name', 'class_name', 'title'], '');
+    final tutor = _readValue(selectedClass, [
+      'tutor',
+      'teacher',
+      'teacher_name',
+      'instructor',
+      'assigned_teacher',
+    ], '');
+    final students = className.isEmpty
+        ? const <dynamic>[]
+        : MockDataService.students.where((s) => s.className == className).toList();
 
     return Stack(
       children: [
@@ -70,17 +83,92 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Sessions',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+          Text(
+            'Sessions',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          AppSpacing.gap16,
+          if (className.isNotEmpty)
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Class Session',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  AppSpacing.gap8,
+                  Text(
+                    className,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  if (tutor.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tutor: $tutor',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                     ),
+                  ],
+                ],
               ),
-              AppSpacing.gap16,
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            ),
+          if (className.isNotEmpty) AppSpacing.gap16,
+          if (className.isNotEmpty)
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Students',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  AppSpacing.gap12,
+                  if (students.isEmpty)
+                    Text(
+                      'No students found for this class.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                    )
+                  else
+                    ListView.separated(
+                      itemCount: students.length,
+                      separatorBuilder: (_, _) => const Divider(height: 24),
+                      physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      itemBuilder: (context, index) {
+                        final student = students[index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
+                            child: Text(student.name.substring(0, 1)),
+                          ),
+                          title: Text(student.name),
+                          subtitle: Text(student.email),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+          if (className.isNotEmpty) AppSpacing.gap20,
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                     Text(
                       'Recent Closed Sessions',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -124,11 +212,11 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                 ),
               ),
               AppSpacing.gap20,
-              Center(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    _AnimatedBlob(controller: _blobController),
+          Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                _AnimatedBlob(controller: _blobController),
                     _SessionButton(
                       running: _running,
                       onTap: _stopping
@@ -138,7 +226,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                   ],
                 ),
               ),
-              AppSpacing.gap16,
+          AppSpacing.gap16,
               AppCard(
                 child: Row(
                   children: [
@@ -213,6 +301,21 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       ],
     );
   }
+}
+
+String _readValue(dynamic item, List<String> keys, String fallback) {
+  if (item is Map<String, dynamic>) {
+    for (final key in keys) {
+      final value = item[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      if (value != null) {
+        return value.toString();
+      }
+    }
+  }
+  return fallback;
 }
 
 class _SessionButton extends StatelessWidget {
