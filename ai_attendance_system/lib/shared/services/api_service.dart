@@ -35,6 +35,25 @@ class ApiService {
     return cleaned;
   }
 
+  Uri _uri(String path, {Map<String, dynamic>? queryParameters}) {
+    final uri = Uri.parse('${baseUrl}$path');
+    if (queryParameters == null || queryParameters.isEmpty) {
+      return uri;
+    }
+
+    final normalized = <String, String>{};
+    queryParameters.forEach((key, value) {
+      if (value == null) return;
+      final text = value.toString().trim();
+      if (text.isEmpty) return;
+      normalized[key] = text;
+    });
+    if (normalized.isEmpty) {
+      return uri;
+    }
+    return uri.replace(queryParameters: normalized);
+  }
+
   Map<String, String> _headers({bool auth = true}) {
     if (auth && _token == null && SessionStore.token != null) {
       _token = SessionStore.token;
@@ -94,7 +113,13 @@ class ApiService {
   }
 
   Future<dynamic> getStudents() async {
-    final uri = Uri.parse('${baseUrl}/students/');
+    final uri = _uri('/students/');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getStudentsFiltered({Map<String, dynamic>? queryParameters}) async {
+    final uri = _uri('/students/', queryParameters: queryParameters);
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
@@ -126,7 +151,7 @@ class ApiService {
   }
 
   Future<dynamic> getClasses() async {
-    final uri = Uri.parse('${baseUrl}/classes/');
+    final uri = _uri('/classes/');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
@@ -158,7 +183,13 @@ class ApiService {
   }
 
   Future<dynamic> getSessions() async {
-    final uri = Uri.parse('${baseUrl}/sessions/');
+    final uri = _uri('/sessions/');
+    final response = await _client.get(uri, headers: _headers());
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> getSessionsFiltered({Map<String, dynamic>? queryParameters}) async {
+    final uri = _uri('/sessions/', queryParameters: queryParameters);
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }

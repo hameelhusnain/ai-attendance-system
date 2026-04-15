@@ -3,4 +3,6 @@ class SessionStore {
   static String? displayName;
   static String? apiBaseUrl;
   static Map<String, dynamic>? selectedClass;
+  static String? currentSessionId;
+  static Map<String, dynamic>? currentSession;
 }

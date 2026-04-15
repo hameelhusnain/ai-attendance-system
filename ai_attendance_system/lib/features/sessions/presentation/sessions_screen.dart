@@ -8,7 +8,8 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../shared/services/mock_data_service.dart';
+import '../../../shared/models/session_history.dart';
+import '../../../shared/services/api_service.dart';
 import '../../../shared/services/session_store.dart';
 import 'session_detail_screen.dart';
 
@@ -23,7 +24,11 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
   bool _running = false;
   int _markedCount = 0;
   bool _stopping = false;
+  bool _starting = false;
+  String? _currentSessionId;
   late final AnimationController _blobController;
+  late Future<List<Map<String, dynamic>>> _studentsFuture;
+  late Future<List<SessionHistory>> _closedSessionsFuture;
 
   @override
   void initState() {
@@ -31,6 +36,8 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     _blobController =
         AnimationController(vsync: this, duration: const Duration(milliseconds: 4200))
           ..repeat();
+    _studentsFuture = _loadStudents();
+    _closedSessionsFuture = _loadSessions();
   }
 
   @override
@@ -39,30 +46,184 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     super.dispose();
   }
 
-  void _startSession() {
-    setState(() {
-      _running = true;
-      _markedCount = 0;
-    });
+  Future<void> _startSession() async {
+    if (_starting || _running) return;
+    final selectedClass = SessionStore.selectedClass ?? const <String, dynamic>{};
+    final classId = _readValue(selectedClass, ['id', 'class_id', 'classId'], '');
+    final className = _readValue(selectedClass, ['name', 'class_name', 'title'], '');
+    final teacherId = _readValue(selectedClass, ['teacher_id', 'teacherId', 'tutor_id'], '');
+
+    if (classId.isEmpty && className.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a class before starting a session.')),
+      );
+      return;
+    }
+
+    setState(() => _starting = true);
+    try {
+      final payload = <String, dynamic>{
+        if (classId.isNotEmpty) 'class_id': classId,
+        if (classId.isNotEmpty) 'classId': classId,
+        if (className.isNotEmpty) 'class_name': className,
+        if (className.isNotEmpty) 'name': className,
+        if (teacherId.isNotEmpty) 'teacher_id': teacherId,
+        if (teacherId.isNotEmpty) 'teacherId': teacherId,
+      };
+      final response = await ApiService().startSession(payload);
+      final session = response is Map ? Map<String, dynamic>.from(response) : <String, dynamic>{};
+      final sessionId = _nestedRead(
+        session,
+        const ['id', 'session_id'],
+        nestedKeys: const ['data', 'session'],
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _running = true;
+        _markedCount = 0;
+        _currentSessionId = sessionId.isEmpty ? null : sessionId;
+        _starting = false;
+      });
+      SessionStore.currentSessionId = _currentSessionId;
+      SessionStore.currentSession = session.isEmpty ? null : session;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session started successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _starting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not start session: $error')),
+      );
+    }
   }
 
   Future<void> _stopSession() async {
-    if (_stopping) return;
+    if (_stopping || _starting || !_running) return;
     setState(() => _stopping = true);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    setState(() {
-      _stopping = false;
-      _running = false;
-    });
-    context.go('/reports');
+    try {
+      if (_currentSessionId != null && _currentSessionId!.isNotEmpty) {
+        await ApiService().endSession(_currentSessionId!);
+        SessionStore.currentSessionId = _currentSessionId;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      setState(() {
+        _stopping = false;
+        _running = false;
+      });
+      _closedSessionsFuture = _loadSessions();
+      context.go('/profile');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _stopping = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not stop session: $error')),
+      );
+    }
+  }
+
+  Map<String, dynamic> _classQueryParameters() {
+    final selectedClass = SessionStore.selectedClass ?? const <String, dynamic>{};
+    final query = <String, dynamic>{};
+    final classId = _readValue(selectedClass, ['id', 'class_id', 'classId'], '');
+    final className = _readValue(selectedClass, ['name', 'class_name', 'title'], '');
+    final teacherId = _readValue(selectedClass, ['teacher_id', 'teacherId', 'tutor_id'], '');
+    if (classId.isNotEmpty) {
+      query['class_id'] = classId;
+      query['classId'] = classId;
+    }
+    if (className.isNotEmpty) {
+      query['class_name'] = className;
+      query['name'] = className;
+    }
+    if (teacherId.isNotEmpty) {
+      query['teacher_id'] = teacherId;
+      query['teacherId'] = teacherId;
+    }
+    return query;
+  }
+
+  Future<List<Map<String, dynamic>>> _loadStudents() async {
+    final api = ApiService();
+    final query = _classQueryParameters();
+    dynamic response;
+
+    try {
+      response = await api.getStudentsFiltered(queryParameters: query);
+    } catch (_) {
+      try {
+        response = await api.getStudents();
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    final raw = _extractList(response, const ['students', 'items', 'data']);
+    final students = raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    if (students.isEmpty) return const [];
+
+    final selectedClass = SessionStore.selectedClass ?? const <String, dynamic>{};
+    final classId = _readValue(selectedClass, ['id', 'class_id', 'classId'], '');
+    final className = _readValue(selectedClass, ['name', 'class_name', 'title'], '');
+
+    final filtered = students.where((student) {
+      final studentClassId = _nestedRead(
+        student,
+        const ['class_id', 'classId', 'id'],
+        nestedKeys: const ['class'],
+      );
+      final studentClassName = _nestedRead(
+        student,
+        const ['class_name', 'name', 'title'],
+        nestedKeys: const ['class'],
+      );
+      if (classId.isNotEmpty && studentClassId == classId) return true;
+      if (className.isNotEmpty &&
+          studentClassName.toLowerCase() == className.toLowerCase()) {
+        return true;
+      }
+      return query.isEmpty;
+    }).toList();
+
+    return filtered.isNotEmpty ? filtered : students;
+  }
+
+  Future<List<SessionHistory>> _loadSessions() async {
+    final api = ApiService();
+    final query = {
+      ..._classQueryParameters(),
+      'status': 'closed',
+      'is_closed': 'true',
+    };
+    dynamic response;
+
+    try {
+      response = await api.getSessionsFiltered(queryParameters: query);
+    } catch (_) {
+      try {
+        response = await api.getSessions();
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    final raw = _extractList(response, const ['sessions', 'items', 'data']);
+    return raw
+        .whereType<Map>()
+        .map((item) => _sessionHistoryFromMap(Map<String, dynamic>.from(item)))
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
-    final sessions = MockDataService.sessions;
     final selectedClass = SessionStore.selectedClass;
     final className = _readValue(selectedClass, ['name', 'class_name', 'title'], '');
     final tutor = _readValue(selectedClass, [
@@ -72,9 +233,6 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       'instructor',
       'assigned_teacher',
     ], '');
-    final students = className.isEmpty
-        ? const <dynamic>[]
-        : MockDataService.students.where((s) => s.className == className).toList();
 
     return Stack(
       children: [
@@ -134,33 +292,54 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                         ),
                   ),
                   AppSpacing.gap12,
-                  if (students.isEmpty)
-                    Text(
-                      'No students found for this class.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                    )
-                  else
-                    ListView.separated(
-                      itemCount: students.length,
-                      separatorBuilder: (_, _) => const Divider(height: 24),
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemBuilder: (context, index) {
-                        final student = students[index];
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: CircleAvatar(
-                            backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
-                            child: Text(student.name.substring(0, 1)),
-                          ),
-                          title: Text(student.name),
-                          subtitle: Text(student.email),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: _studentsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
                         );
-                      },
-                    ),
+                      }
+                      final students = snapshot.data ?? const [];
+                      if (students.isEmpty) {
+                        return Text(
+                          'No students found for this class.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                        );
+                      }
+                      return ListView.separated(
+                        itemCount: students.length,
+                        separatorBuilder: (_, _) => const Divider(height: 24),
+                        physics: const NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        itemBuilder: (context, index) {
+                          final student = students[index];
+                          final name = _nestedRead(
+                            student,
+                            const ['name', 'student_name'],
+                            fallback: 'Student',
+                          );
+                          final email = _nestedRead(
+                            student,
+                            const ['email', 'student_email', 'roll_no', 'id'],
+                          );
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
+                              child: Text(name.isEmpty ? '?' : name.substring(0, 1).toUpperCase()),
+                            ),
+                            title: Text(name),
+                            subtitle: email.isEmpty ? null : Text(email),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -176,38 +355,50 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                           ),
                     ),
                     AppSpacing.gap12,
-                    if (sessions.isEmpty)
-                      const EmptyState(
-                        title: 'No recent sessions',
-                        message: 'Closed sessions will appear here.',
-                      )
-                    else
-                      ListView.separated(
-                        itemCount: sessions.length,
-                        separatorBuilder: (_, _) => const Divider(height: 24),
-                        physics: const NeverScrollableScrollPhysics(),
-                        shrinkWrap: true,
-                        itemBuilder: (context, index) {
-                          final session = sessions[index];
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(session.title),
-                            subtitle: Text(
-                              '${session.className} • ${session.semester} • ${session.batch} • ${session.group}',
-                            ),
-                            trailing: Text(
-                              '${session.percentage.toStringAsFixed(1)}%',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textSecondaryFor(context),
-                                  ),
-                            ),
-                            onTap: () => context.go(
-                              '/sessions/${session.id}',
-                              extra: SessionDetailArgs(session: session),
-                            ),
+                    FutureBuilder<List<SessionHistory>>(
+                      future: _closedSessionsFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
                           );
-                        },
-                      ),
+                        }
+                        final sessions = snapshot.data ?? const [];
+                        if (sessions.isEmpty) {
+                          return const EmptyState(
+                            title: 'No recent sessions',
+                            message: 'Closed sessions will appear here.',
+                          );
+                        }
+                        return ListView.separated(
+                          itemCount: sessions.length,
+                          separatorBuilder: (_, _) => const Divider(height: 24),
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemBuilder: (context, index) {
+                            final session = sessions[index];
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(session.title),
+                              subtitle: Text(
+                                '${session.className} • ${session.semester} • ${session.batch} • ${session.group}',
+                              ),
+                              trailing: Text(
+                                '${session.percentage.toStringAsFixed(1)}%',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppTheme.textSecondaryFor(context),
+                                    ),
+                              ),
+                              onTap: () => context.go(
+                                '/sessions/${session.id}',
+                                extra: SessionDetailArgs(session: session),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -219,7 +410,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                 _AnimatedBlob(controller: _blobController),
                     _SessionButton(
                       running: _running,
-                      onTap: _stopping
+                      onTap: (_stopping || _starting)
                           ? null
                           : () => _running ? _stopSession() : _startSession(),
                     ),
@@ -249,7 +440,9 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                           Text(
                             _running
                                 ? 'Camera active • Attendance counting in progress'
-                                : 'Press start to begin marking attendance',
+                                : _starting
+                                    ? 'Creating session...'
+                                    : 'Press start to begin marking attendance',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -289,12 +482,25 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
             ],
           ),
         ),
-        if (_stopping)
+        if (_stopping || _starting)
           Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.35),
-              child: const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(strokeWidth: 2),
+                    const SizedBox(height: 12),
+                    Text(
+                      _starting ? 'Starting session...' : 'Stopping session...',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -316,6 +522,72 @@ String _readValue(dynamic item, List<String> keys, String fallback) {
     }
   }
   return fallback;
+}
+
+String _nestedRead(
+  Map<String, dynamic> item,
+  List<String> keys, {
+  List<String> nestedKeys = const ['student', 'class', 'data'],
+  String fallback = '',
+  int depth = 0,
+}) {
+  for (final key in keys) {
+    final value = item[key];
+    if (value != null && value.toString().trim().isNotEmpty) {
+      return value.toString().trim();
+    }
+  }
+  if (depth > 2) return fallback;
+  for (final nestedKey in nestedKeys) {
+    final nested = item[nestedKey];
+    if (nested is Map) {
+      final resolved = _nestedRead(
+        Map<String, dynamic>.from(nested),
+        keys,
+        nestedKeys: nestedKeys,
+        fallback: fallback,
+        depth: depth + 1,
+      );
+      if (resolved.isNotEmpty) return resolved;
+    }
+  }
+  return fallback;
+}
+
+List<dynamic> _extractList(dynamic response, List<String> keys) {
+  if (response is List) return response;
+  if (response is Map) {
+    for (final key in keys) {
+      final value = response[key];
+      if (value is List) return value;
+    }
+  }
+  return const [];
+}
+
+SessionHistory _sessionHistoryFromMap(Map<String, dynamic> item) {
+  final marked = int.tryParse(
+        _nestedRead(item, const ['marked', 'present', 'present_count'], fallback: '0'),
+      ) ??
+      0;
+  final total = int.tryParse(
+        _nestedRead(item, const ['total', 'total_students', 'student_count'], fallback: '0'),
+      ) ??
+      0;
+  return SessionHistory(
+    id: _nestedRead(item, const ['id', 'session_id'], fallback: 'session'),
+    label: _nestedRead(item, const ['date', 'session_date', 'created_at'], fallback: 'Recent'),
+    title: _nestedRead(item, const ['title', 'name', 'label'], fallback: 'Session'),
+    className: _nestedRead(item, const ['class_name', 'name', 'title'],
+        nestedKeys: const ['class'], fallback: 'Class'),
+    department: _nestedRead(item, const ['department', 'department_name'],
+        fallback: 'Department'),
+    semester: _nestedRead(item, const ['semester'], fallback: '-'),
+    batch: _nestedRead(item, const ['batch'], fallback: '-'),
+    group: _nestedRead(item, const ['group', 'section'], fallback: '-'),
+    marked: marked,
+    total: total,
+  );
 }
 
 class _SessionButton extends StatelessWidget {

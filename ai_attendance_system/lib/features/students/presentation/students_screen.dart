@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../shared/models/student.dart';
-import '../../../shared/services/mock_data_service.dart';
+import '../../../shared/services/api_service.dart';
 
 class StudentsScreen extends StatefulWidget {
   const StudentsScreen({super.key});
@@ -20,6 +20,14 @@ class _StudentsScreenState extends State<StudentsScreen> {
   final _searchController = TextEditingController();
   String _classFilter = 'All';
   String _statusFilter = 'All';
+  bool _loading = true;
+  List<Map<String, dynamic>> _students = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
 
   @override
   void dispose() {
@@ -27,17 +35,66 @@ class _StudentsScreenState extends State<StudentsScreen> {
     super.dispose();
   }
 
-  List<Student> _filteredStudents() {
+  Future<void> _loadStudents() async {
+    try {
+      final response = await ApiService().getStudents();
+      final students = _extractStudents(response);
+      if (!mounted) return;
+      setState(() {
+        _students = students;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _students = const [];
+        _loading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _filteredStudents() {
     final query = _searchController.text.trim().toLowerCase();
-    return MockDataService.students.where((student) {
+    return _students.where((student) {
+      final name = _readValue(student, const ['name', 'student_name']).toLowerCase();
+      final id = _readValue(student, const ['id', 'student_id']).toLowerCase();
+      final email = _readValue(student, const ['email', 'student_email']).toLowerCase();
+      final className = _readValue(
+        student,
+        const ['class_name', 'name', 'title'],
+        nestedKeys: const ['class'],
+      );
+      final status = _readValue(student, const ['status', 'attendance_status']);
+
       final matchesQuery = query.isEmpty ||
-          student.name.toLowerCase().contains(query) ||
-          student.id.toLowerCase().contains(query) ||
-          student.email.toLowerCase().contains(query);
-      final matchesClass = _classFilter == 'All' || student.className == _classFilter;
-      final matchesStatus = _statusFilter == 'All' || student.status == _statusFilter;
+          name.contains(query) ||
+          id.contains(query) ||
+          email.contains(query);
+      final matchesClass = _classFilter == 'All' || className == _classFilter;
+      final matchesStatus = _statusFilter == 'All' || status == _statusFilter;
       return matchesQuery && matchesClass && matchesStatus;
     }).toList();
+  }
+
+  List<String> _classOptions() {
+    final values = _students
+        .map((student) => _readValue(student, const ['class_name', 'name', 'title'],
+            nestedKeys: const ['class']))
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['All', ...values];
+  }
+
+  List<String> _statusOptions() {
+    final values = _students
+        .map((student) => _readValue(student, const ['status', 'attendance_status']))
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['All', ...values];
   }
 
   @override
@@ -45,6 +102,9 @@ class _StudentsScreenState extends State<StudentsScreen> {
     final students = _filteredStudents();
     final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
+    final classOptions = _classOptions();
+    final statusOptions = _statusOptions();
+
     return Padding(
       padding: padding,
       child: Column(
@@ -68,25 +128,23 @@ class _StudentsScreenState extends State<StudentsScreen> {
                       DropdownButtonFormField<String>(
                         initialValue: _classFilter,
                         decoration: const InputDecoration(labelText: 'Class'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(value: 'CS-301', child: Text('CS-301')),
-                          DropdownMenuItem(value: 'CS-302', child: Text('CS-302')),
-                          DropdownMenuItem(value: 'CS-303', child: Text('CS-303')),
-                          DropdownMenuItem(value: 'CS-304', child: Text('CS-304')),
-                          DropdownMenuItem(value: 'CS-305', child: Text('CS-305')),
-                        ],
+                        items: classOptions
+                            .map((value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(value),
+                                ))
+                            .toList(),
                         onChanged: (value) => setState(() => _classFilter = value ?? 'All'),
                       ),
                       DropdownButtonFormField<String>(
                         initialValue: _statusFilter,
                         decoration: const InputDecoration(labelText: 'Status'),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(value: 'Active', child: Text('Active')),
-                          DropdownMenuItem(value: 'On Leave', child: Text('On Leave')),
-                          DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
-                        ],
+                        items: statusOptions
+                            .map((value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(value),
+                                ))
+                            .toList(),
                         onChanged: (value) => setState(() => _statusFilter = value ?? 'All'),
                       ),
                     ];
@@ -128,37 +186,63 @@ class _StudentsScreenState extends State<StudentsScreen> {
           AppSpacing.gap16,
           Expanded(
             child: AppCard(
-              child: students.isEmpty
-                  ? const EmptyState(
-                      title: 'No students found',
-                      message: 'Try adjusting your filters or search query.',
-                    )
-                  : ListView.separated(
-                      itemCount: students.length,
-                      separatorBuilder: (_, _) => const Divider(height: 24),
-                      itemBuilder: (context, index) {
-                        final student = students[index];
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: CircleAvatar(
-                            backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
-                            child: Text(student.name.substring(0, 1)),
-                          ),
-                          title: Text(student.name),
-                          subtitle: Text('${student.className} • ${student.email}'),
-                          trailing: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _StatusChip(status: student.status),
-                              const SizedBox(height: 6),
-                              Text('${student.attendanceRate.toStringAsFixed(1)}%'),
-                            ],
-                          ),
-                          onTap: () => context.go('/students/${student.id}'),
-                        );
-                      },
-                    ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  : students.isEmpty
+                      ? const EmptyState(
+                          title: 'No students found',
+                          message: 'Try adjusting your filters or search query.',
+                        )
+                      : ListView.separated(
+                          itemCount: students.length,
+                          separatorBuilder: (_, _) => const Divider(height: 24),
+                          itemBuilder: (context, index) {
+                            final student = students[index];
+                            final name = _readValue(student, const ['name', 'student_name'],
+                                fallback: 'Student');
+                            final className = _readValue(
+                              student,
+                              const ['class_name', 'name', 'title'],
+                              nestedKeys: const ['class'],
+                            );
+                            final email = _readValue(
+                              student,
+                              const ['email', 'student_email', 'roll_no'],
+                            );
+                            final status = _readValue(
+                              student,
+                              const ['status', 'attendance_status'],
+                              fallback: 'Active',
+                            );
+                            final attendanceRate = _readDouble(
+                              student,
+                              const ['attendance_rate', 'rate'],
+                            );
+                            final studentId = _readValue(student, const ['id', 'student_id']);
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
+                                child: Text(name.substring(0, 1).toUpperCase()),
+                              ),
+                              title: Text(name),
+                              subtitle: Text(
+                                [className, email].where((value) => value.isNotEmpty).join(' • '),
+                              ),
+                              trailing: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _StatusChip(status: status),
+                                  const SizedBox(height: 6),
+                                  if (attendanceRate > 0)
+                                    Text('${attendanceRate.toStringAsFixed(1)}%'),
+                                ],
+                              ),
+                              onTap: studentId.isEmpty ? null : () => context.go('/students/$studentId'),
+                            );
+                          },
+                        ),
             ),
           ),
         ],
@@ -175,11 +259,13 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color color;
-    switch (status) {
-      case 'Active':
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'present':
         color = AppTheme.brandGreen;
         break;
-      case 'On Leave':
+      case 'on leave':
+      case 'pending':
         color = AppTheme.accentOrange;
         break;
       default:
@@ -197,4 +283,54 @@ class _StatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+List<Map<String, dynamic>> _extractStudents(dynamic response) {
+  if (response is List) {
+    return response.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+  if (response is Map) {
+    for (final key in const ['students', 'items', 'data']) {
+      final value = response[key];
+      if (value is List) {
+        return value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+      }
+    }
+  }
+  return const [];
+}
+
+String _readValue(
+  Map<String, dynamic> item,
+  List<String> keys, {
+  List<String> nestedKeys = const ['student', 'class', 'data'],
+  String fallback = '',
+  int depth = 0,
+}) {
+  for (final key in keys) {
+    final value = item[key];
+    if (value != null && value.toString().trim().isNotEmpty) {
+      return value.toString().trim();
+    }
+  }
+  if (depth > 2) return fallback;
+  for (final nestedKey in nestedKeys) {
+    final nested = item[nestedKey];
+    if (nested is Map) {
+      final resolved = _readValue(
+        Map<String, dynamic>.from(nested),
+        keys,
+        nestedKeys: nestedKeys,
+        fallback: fallback,
+        depth: depth + 1,
+      );
+      if (resolved.isNotEmpty) return resolved;
+    }
+  }
+  return fallback;
+}
+
+double _readDouble(Map<String, dynamic> item, List<String> keys) {
+  final value = _readValue(item, keys);
+  return double.tryParse(value) ?? 0;
 }

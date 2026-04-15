@@ -1,14 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:cross_file/cross_file.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
 import '../../../core/widgets/app_text_field.dart';
-import '../../../shared/models/session_history.dart';
-import '../../../shared/models/student.dart';
 import '../../../shared/services/api_service.dart';
-import '../../../shared/services/mock_data_service.dart';
 import '../../../shared/services/session_store.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -29,7 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   List<Map<String, dynamic>> _students = const [];
   List<_SessionHistoryView> _historyCards = const [];
-  List<_ReportStudent> _breakdown = _reportStudents;
+  List<_ReportStudent> _breakdown = const [];
   Map<String, dynamic>? _selectedStudent;
   List<_StudentHistoryEntry> _studentHistory = const [];
 
@@ -85,29 +87,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return _breakdown.where((student) => !student.present).length;
   }
 
+  Map<String, dynamic> _reportQueryParameters() {
+    final selectedClass = _selectedClass;
+    final query = <String, dynamic>{};
+    final classId = _stringValue(selectedClass, ['id', 'class_id', 'classId']);
+    final className = _stringValue(selectedClass, ['name', 'class_name', 'title']);
+    final teacherId = _stringValue(selectedClass, ['teacher_id', 'teacherId', 'tutor_id']);
+    if (classId.isNotEmpty) {
+      query['class_id'] = classId;
+      query['classId'] = classId;
+    }
+    if (className.isNotEmpty) {
+      query['class_name'] = className;
+      query['name'] = className;
+    }
+    if (teacherId.isNotEmpty) {
+      query['teacher_id'] = teacherId;
+      query['teacherId'] = teacherId;
+    }
+    return query;
+  }
+
   Future<void> _loadReportData() async {
     final api = ApiService();
-    List<dynamic> sessionsRaw = const [];
-    List<dynamic> studentsRaw = const [];
+    dynamic sessionsResponse;
+    dynamic studentsResponse;
+    final query = _reportQueryParameters();
 
     try {
-      final response = await api.getSessions();
-      if (response is List) sessionsRaw = response;
+      sessionsResponse = await api.getSessionsFiltered(queryParameters: query);
     } catch (_) {}
+    sessionsResponse ??= await _safeCall(() => api.getSessions());
 
     try {
-      final response = await api.getStudents();
-      if (response is List) studentsRaw = response;
+      studentsResponse = await api.getStudentsFiltered(queryParameters: query);
     } catch (_) {}
+    studentsResponse ??= await _safeCall(() => api.getStudents());
+
+    final sessionsRaw = _extractResponseList(sessionsResponse, const ['sessions', 'items', 'data']);
+    final studentsRaw = _extractResponseList(studentsResponse, const ['students', 'items', 'data']);
 
     final students = _normalizeStudents(studentsRaw);
     final sessions = _normalizeSessions(sessionsRaw);
 
-    final resolvedStudents = students.isNotEmpty ? students : _mockStudentsForSelectedClass();
-    final resolvedSessions = sessions.isNotEmpty ? sessions : _mockSessionsForSelectedClass();
+    final resolvedStudents = students.isNotEmpty ? students : studentsRaw;
+    final resolvedSessions = sessions.isNotEmpty ? sessions : sessionsRaw;
     final historyCards = await _buildHistoryCards(resolvedSessions);
+    final activeSessionId = SessionStore.currentSessionId;
     final breakdown = await _loadBreakdown(
-      historyCards.isNotEmpty ? historyCards.first.sessionId : null,
+      activeSessionId != null && activeSessionId.isNotEmpty
+          ? activeSessionId
+          : historyCards.isNotEmpty
+              ? historyCards.first.sessionId
+              : null,
     );
     final selectedStudent = resolvedStudents.isNotEmpty ? resolvedStudents.first : null;
     final studentHistory = selectedStudent != null
@@ -123,6 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _studentHistory = studentHistory;
       _loading = false;
     });
+  }
+
+  Future<dynamic> _safeCall(Future<dynamic> Function() action) async {
+    try {
+      return await action();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<_SessionHistoryView>> _buildHistoryCards(
@@ -183,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<List<_ReportStudent>> _loadBreakdown(String? sessionId) async {
-    if (sessionId == null || sessionId.isEmpty) return _reportStudents;
+    if (sessionId == null || sessionId.isEmpty) return const [];
 
     try {
       final response = await ApiService().getAttendanceSessionReport(sessionId);
@@ -193,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (_) {}
 
-    return _reportStudents;
+    return const [];
   }
 
   Future<void> _selectStudent(Map<String, dynamic> student) async {
@@ -226,7 +266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } catch (_) {}
     }
 
-    return _mockStudentHistory(student);
+    return const [];
   }
 
   List<Map<String, dynamic>> _normalizeStudents(List<dynamic> students) {
@@ -247,26 +287,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (_matchesSelectedClass(map)) normalized.add(map);
     }
     return normalized;
-  }
-
-  List<Map<String, dynamic>> _mockStudentsForSelectedClass() {
-    return MockDataService.students
-        .where((student) {
-          if (_selectedClassName == 'Selected Class') return true;
-          return student.className.toLowerCase() == _selectedClassName.toLowerCase();
-        })
-        .map(_studentToMap)
-        .toList();
-  }
-
-  List<Map<String, dynamic>> _mockSessionsForSelectedClass() {
-    return MockDataService.sessions
-        .where((session) {
-          if (_selectedClassName == 'Selected Class') return true;
-          return session.className.toLowerCase() == _selectedClassName.toLowerCase();
-        })
-        .map(_sessionToMap)
-        .toList();
   }
 
   bool _matchesSelectedClass(Map<String, dynamic> item) {
@@ -364,6 +384,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         AppSpacing.gap16,
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _historyCards.isEmpty ? null : _exportClassReport,
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Generate Class Report'),
+          ),
+        ),
+        AppSpacing.gap12,
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,38 +404,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
               ),
               AppSpacing.gap12,
-              ListView.separated(
-                itemCount: _breakdown.length,
-                separatorBuilder: (_, _) => const Divider(height: 24),
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                itemBuilder: (context, index) {
-                  final student = _breakdown[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: student.color.withOpacity(0.14),
-                      child: Text(student.initials),
-                    ),
-                    title: Text(student.name),
-                    subtitle: student.subtitle.isEmpty ? null : Text(student.subtitle),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _StatusPill(label: student.status, color: student.color),
-                        const SizedBox(width: 8),
-                        Icon(
-                          student.present ? Icons.check_circle : Icons.cancel,
-                          color: student.present
-                              ? AppTheme.brandGreen
-                              : AppTheme.accentOrange,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+              if (_breakdown.isEmpty)
+                Text(
+                  'No student breakdown available for this session.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                )
+              else
+                ListView.separated(
+                  itemCount: _breakdown.length,
+                  separatorBuilder: (_, _) => const Divider(height: 24),
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemBuilder: (context, index) {
+                    final student = _breakdown[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: student.color.withOpacity(0.14),
+                        child: Text(student.initials),
+                      ),
+                      title: Text(student.name),
+                      subtitle: student.subtitle.isEmpty ? null : Text(student.subtitle),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StatusPill(label: student.status, color: student.color),
+                          const SizedBox(width: 8),
+                          Icon(
+                            student.present ? Icons.check_circle : Icons.cancel,
+                            color: student.present
+                                ? AppTheme.brandGreen
+                                : AppTheme.accentOrange,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -430,6 +468,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _historyCards.isEmpty ? null : _exportClassReport,
+            icon: const Icon(Icons.table_view_outlined),
+            label: const Text('Export CSV'),
+          ),
+        ),
+        AppSpacing.gap12,
         Text(
           'Previous Sessions',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -637,6 +684,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: _selectedStudent == null ? null : _exportStudentReport,
+                    icon: const Icon(Icons.download_for_offline_outlined),
+                    label: const Text('Generate Student Report'),
+                  ),
+                ),
+                AppSpacing.gap12,
                 Row(
                   children: [
                     CircleAvatar(
@@ -705,6 +761,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 AppSpacing.gap16,
                 if (_loadingStudentHistory)
                   const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                else if (_studentHistory.isEmpty)
+                  Text(
+                    'No attendance history available for this student.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                  )
                 else
                   ListView.separated(
                     itemCount: _studentHistory.length,
@@ -765,6 +829,87 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _exportClassReport() async {
+    final rows = <List<String>>[
+      ['Class', _selectedClassName],
+      ['Code', _selectedClassCode],
+      ['Present', _thisSessionPresent.toString()],
+      ['Absent', _thisSessionAbsent.toString()],
+      [],
+      ['Session', 'Date', 'Time', 'Present', 'Absent', 'Attendance %'],
+      ..._historyCards.map((item) => [
+            item.title,
+            item.dateLabel,
+            item.timeLabel,
+            item.present.toString(),
+            item.absent.toString(),
+            item.percentage.toStringAsFixed(1),
+          ]),
+      [],
+      ['Student', 'Identifier', 'Status', 'Present'],
+      ..._breakdown.map((student) => [
+            student.name,
+            student.subtitle,
+            student.status,
+            student.present ? 'Yes' : 'No',
+          ]),
+    ];
+    await _shareCsv(
+      fileName: '${_safeFileName(_selectedClassName)}_class_report.csv',
+      rows: rows,
+    );
+  }
+
+  Future<void> _exportStudentReport() async {
+    final student = _selectedStudent;
+    if (student == null) return;
+    final summary = _summarizeStudentHistory(student, _studentHistory);
+    final rows = <List<String>>[
+      ['Student', _stringValue(student, ['name', 'student_name'], 'Student')],
+      ['ID', _stringValue(student, ['id', 'student_id'])],
+      ['Present', summary.present.toString()],
+      ['Absent', summary.absent.toString()],
+      ['Attendance Rate', '${summary.rate.toStringAsFixed(1)}%'],
+      [],
+      ['Date', 'Status', 'Most Recent Activity'],
+      ..._studentHistory.map((entry) => [
+            entry.dateLabel,
+            entry.title,
+            entry.note,
+          ]),
+    ];
+    await _shareCsv(
+      fileName:
+          '${_safeFileName(_stringValue(student, ['name', 'student_name'], 'student'))}_report.csv',
+      rows: rows,
+    );
+  }
+
+  Future<void> _shareCsv({
+    required String fileName,
+    required List<List<String>> rows,
+  }) async {
+    final csv = rows.map((row) => row.map(_csvCell).join(',')).join('\n');
+    final file = XFile.fromData(
+      Uint8List.fromList(utf8.encode(csv)),
+      mimeType: 'text/csv',
+      name: fileName,
+    );
+
+    try {
+      await Share.shareXFiles(
+        [file],
+        text: 'Attendance report export',
+        subject: fileName,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export CSV: $error')),
+      );
+    }
+  }
+
   _StudentSummary _summarizeStudentHistory(
     Map<String, dynamic>? student,
     List<_StudentHistoryEntry> history,
@@ -815,50 +960,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       present: isPresent,
       color: _statusColor(status, isPresent),
     );
-  }
-
-  List<_StudentHistoryEntry> _mockStudentHistory(Map<String, dynamic> student) {
-    final name = _stringValue(student, ['name', 'student_name'], 'Student');
-    final records = MockDataService.attendanceRecords
-        .where((record) => record.studentName.toLowerCase() == name.toLowerCase())
-        .toList();
-
-    if (records.isEmpty) {
-      return const [
-        _StudentHistoryEntry(
-          dateLabel: 'March 28',
-          title: 'Present',
-          note: 'Engaged throughout session',
-          present: true,
-          color: AppTheme.brandGreen,
-        ),
-        _StudentHistoryEntry(
-          dateLabel: 'March 27',
-          title: 'Present',
-          note: 'Distracted — 3 warnings',
-          present: true,
-          color: AppTheme.brandGreen,
-        ),
-        _StudentHistoryEntry(
-          dateLabel: 'March 25',
-          title: 'Absent',
-          note: 'No attendance recorded',
-          present: false,
-          color: AppTheme.accentOrange,
-        ),
-      ];
-    }
-
-    return records.map((record) {
-      final present = record.status.toLowerCase() == 'present';
-      return _StudentHistoryEntry(
-        dateLabel: record.date,
-        title: present ? 'Present' : 'Absent',
-        note: present ? 'Attendance recorded successfully' : 'No attendance recorded',
-        present: present,
-        color: present ? AppTheme.brandGreen : AppTheme.accentOrange,
-      );
-    }).toList();
   }
 }
 
@@ -1126,40 +1227,23 @@ class _StudentSummary {
   final double rate;
 }
 
-Map<String, dynamic> _studentToMap(Student student) {
-  return {
-    'id': student.id,
-    'name': student.name,
-    'student_name': student.name,
-    'email': student.email,
-    'class_name': student.className,
-    'semester': student.semester,
-    'batch': student.batch,
-    'group': student.group,
-    'status': student.status,
-    'attendance_rate': student.attendanceRate,
-  };
-}
-
-Map<String, dynamic> _sessionToMap(SessionHistory session) {
-  return {
-    'id': session.id,
-    'title': session.title,
-    'date': session.label,
-    'class_name': session.className,
-    'department': session.department,
-    'semester': session.semester,
-    'batch': session.batch,
-    'group': session.group,
-    'present': session.marked,
-    'total': session.total,
-    'percentage': session.percentage,
-  };
-}
-
 String _joinNonEmpty(List<String> values, {String separator = ' • '}) {
   final filtered = values.where((value) => value.trim().isNotEmpty).toList();
   return filtered.join(separator);
+}
+
+List<Map<String, dynamic>> _extractResponseList(dynamic response, List<String> keys) {
+  if (response is List) {
+    return response
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+  final values = _listValue(response, keys);
+  return values
+      .whereType<Map>()
+      .map((item) => Map<String, dynamic>.from(item))
+      .toList();
 }
 
 String _classValue(dynamic item, List<String> keys) {
@@ -1267,37 +1351,16 @@ String _initials(String name) {
   return parts.take(2).map((part) => part.substring(0, 1).toUpperCase()).join();
 }
 
-const List<_ReportStudent> _reportStudents = [
-  _ReportStudent(
-    id: 'BSCS-F21-001',
-    name: 'Ahmed Khan',
-    subtitle: 'BSCS-F21-001',
-    status: 'Engaged',
-    present: true,
-    color: AppTheme.brandGreen,
-  ),
-  _ReportStudent(
-    id: 'BSCS-F21-002',
-    name: 'Sara Riaz',
-    subtitle: 'BSCS-F21-002',
-    status: 'Using Phone',
-    present: true,
-    color: AppTheme.accentOrange,
-  ),
-  _ReportStudent(
-    id: 'BSCS-F21-003',
-    name: 'Usman Malik',
-    subtitle: 'BSCS-F21-003',
-    status: 'Sleeping',
-    present: true,
-    color: AppTheme.accentPurple,
-  ),
-  _ReportStudent(
-    id: 'BSCS-F21-004',
-    name: 'Fatima Ali',
-    subtitle: 'BSCS-F21-004',
-    status: 'Absent',
-    present: false,
-    color: AppTheme.danger,
-  ),
-];
+String _safeFileName(String value) {
+  final sanitized = value
+      .trim()
+      .replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'^_|_$'), '');
+  return sanitized.isEmpty ? 'report' : sanitized.toLowerCase();
+}
+
+String _csvCell(String value) {
+  final escaped = value.replaceAll('"', '""');
+  return '"$escaped"';
+}
