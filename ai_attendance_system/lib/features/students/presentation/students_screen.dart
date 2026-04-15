@@ -56,7 +56,9 @@ class _StudentsScreenState extends State<StudentsScreen> {
   List<Map<String, dynamic>> _filteredStudents() {
     final query = _searchController.text.trim().toLowerCase();
     return _students.where((student) {
-      final name = _readValue(student, const ['name', 'student_name']).toLowerCase();
+      final name =
+          _readValue(student, const ['full_name', 'student_full_name', 'student_name', 'name'])
+              .toLowerCase();
       final id = _readValue(student, const ['id', 'student_id']).toLowerCase();
       final email = _readValue(student, const ['email', 'student_email']).toLowerCase();
       final className = _readValue(
@@ -198,8 +200,11 @@ class _StudentsScreenState extends State<StudentsScreen> {
                           separatorBuilder: (_, _) => const Divider(height: 24),
                           itemBuilder: (context, index) {
                             final student = students[index];
-                            final name = _readValue(student, const ['name', 'student_name'],
-                                fallback: 'Student');
+                            final name = _readValue(
+                              student,
+                              const ['full_name', 'student_full_name', 'student_name', 'name'],
+                              fallback: 'Student',
+                            );
                             final className = _readValue(
                               student,
                               const ['class_name', 'name', 'title'],

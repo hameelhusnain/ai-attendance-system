@@ -130,7 +130,11 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = _readValue(student, const ['name', 'student_name'], fallback: 'Student');
+    final name = _readValue(
+      student,
+      const ['full_name', 'student_full_name', 'student_name', 'name'],
+      fallback: 'Student',
+    );
     final email = _readValue(student, const ['email', 'student_email']);
     final className = _readValue(
       student,

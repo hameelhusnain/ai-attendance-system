@@ -572,7 +572,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final filteredStudents = _students.where((student) {
       if (_studentQuery.trim().isEmpty) return true;
       final query = _studentQuery.toLowerCase();
-      final name = _stringValue(student, ['name', 'student_name']).toLowerCase();
+      final name = _stringValue(
+        student,
+        ['full_name', 'student_full_name', 'student_name', 'name'],
+      ).toLowerCase();
       final id = _stringValue(student, ['id', 'student_id']).toLowerCase();
       return name.contains(query) || id.contains(query);
     }).toList();
@@ -650,9 +653,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ? AppTheme.brandGreen
                                   : AppTheme.accentPurple)
                               .withOpacity(0.14),
-                          child: Text(_initials(_stringValue(student, ['name', 'student_name']))),
+                          child: Text(_initials(_stringValue(
+                            student,
+                            ['full_name', 'student_full_name', 'student_name', 'name'],
+                          ))),
                         ),
-                        title: Text(_stringValue(student, ['name', 'student_name'], 'Student')),
+                        title: Text(_stringValue(
+                          student,
+                          ['full_name', 'student_full_name', 'student_name', 'name'],
+                          'Student',
+                        )),
                         subtitle: Text(_stringValue(student, ['id', 'student_id'], '')),
                         trailing: Icon(
                           isSelected ? Icons.check_circle : Icons.chevron_right,
@@ -699,7 +709,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 24,
                       backgroundColor: AppTheme.accentPurple.withOpacity(0.14),
                       child: Text(
-                        _initials(_stringValue(selectedStudent, ['name', 'student_name'])),
+                        _initials(_stringValue(
+                          selectedStudent,
+                          ['full_name', 'student_full_name', 'student_name', 'name'],
+                        )),
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               color: AppTheme.accentPurple,
                               fontWeight: FontWeight.w700,
@@ -712,7 +725,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _stringValue(selectedStudent, ['name', 'student_name'], 'Student'),
+                            _stringValue(
+                              selectedStudent,
+                              ['full_name', 'student_full_name', 'student_name', 'name'],
+                              'Student',
+                            ),
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -865,7 +882,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (student == null) return;
     final summary = _summarizeStudentHistory(student, _studentHistory);
     final rows = <List<String>>[
-      ['Student', _stringValue(student, ['name', 'student_name'], 'Student')],
+      [
+        'Student',
+        _stringValue(
+          student,
+          ['full_name', 'student_full_name', 'student_name', 'name'],
+          'Student',
+        ),
+      ],
       ['ID', _stringValue(student, ['id', 'student_id'])],
       ['Present', summary.present.toString()],
       ['Absent', summary.absent.toString()],
@@ -879,8 +903,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ]),
     ];
     await _shareCsv(
-      fileName:
-          '${_safeFileName(_stringValue(student, ['name', 'student_name'], 'student'))}_report.csv',
+      fileName: '${_safeFileName(_stringValue(
+        student,
+        ['full_name', 'student_full_name', 'student_name', 'name'],
+        'student',
+      ))}_report.csv',
       rows: rows,
     );
   }
@@ -937,7 +964,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fallback: !status.toLowerCase().contains('absent'));
     return _ReportStudent(
       id: _stringValue(item, ['id', 'student_id']),
-      name: _stringValue(item, ['name', 'student_name'], 'Student'),
+      name: _stringValue(
+        item,
+        ['full_name', 'student_full_name', 'student_name', 'name'],
+        'Student',
+      ),
       subtitle: _stringValue(item, ['roll_no', 'registration_no', 'id']),
       status: status,
       present: isPresent,

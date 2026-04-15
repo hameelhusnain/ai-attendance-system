@@ -320,7 +320,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                           final student = students[index];
                           final name = _nestedRead(
                             student,
-                            const ['name', 'student_name'],
+                            const ['full_name', 'student_full_name', 'student_name', 'name'],
                             fallback: 'Student',
                           );
                           final email = _nestedRead(

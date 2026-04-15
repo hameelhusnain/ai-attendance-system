@@ -21,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _apiService = ApiService();
   bool _loading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -81,8 +82,18 @@ class _LoginScreenState extends State<LoginScreen> {
               hintText: 'Enter your password',
               controller: _passwordController,
               isPassword: true,
+              obscureText: _obscurePassword,
               prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: const Icon(Icons.visibility_off_outlined),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() => _obscurePassword = !_obscurePassword);
+                },
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              ),
             ),
             AppSpacing.gap12,
             Align(

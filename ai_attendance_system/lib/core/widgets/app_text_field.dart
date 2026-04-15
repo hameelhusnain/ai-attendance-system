@@ -7,6 +7,7 @@ class AppTextField extends StatelessWidget {
     this.hintText,
     this.controller,
     this.isPassword = false,
+    this.obscureText,
     this.keyboardType,
     this.requiredField = true,
     this.validator,
@@ -19,6 +20,7 @@ class AppTextField extends StatelessWidget {
   final String? hintText;
   final TextEditingController? controller;
   final bool isPassword;
+  final bool? obscureText;
   final TextInputType? keyboardType;
   final bool requiredField;
   final String? Function(String?)? validator;
@@ -30,7 +32,7 @@ class AppTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
-      obscureText: isPassword,
+      obscureText: obscureText ?? isPassword,
       keyboardType: keyboardType,
       onChanged: onChanged,
       decoration: InputDecoration(
