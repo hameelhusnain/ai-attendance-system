@@ -355,14 +355,10 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                         shrinkWrap: true,
                         itemBuilder: (context, index) {
                           final student = students[index];
-                          final name = _nestedRead(
-                            student,
-                            const ['full_name', 'student_full_name', 'student_name', 'name'],
-                            fallback: 'Student',
-                          );
+                          final name = _resolveStudentName(student);
                           final email = _nestedRead(
                             student,
-                            const ['email', 'student_email', 'roll_no', 'id'],
+                            const ['email', 'student_email', 'roll_no', 'id', 'student_id'],
                           );
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -561,6 +557,22 @@ String _readValue(dynamic item, List<String> keys, String fallback) {
   return fallback;
 }
 
+String _resolveStudentName(Map<String, dynamic> student) {
+  final name = _nestedRead(
+    student,
+    const ['full_name', 'student_full_name', 'student_name', 'name'],
+    fallback: '',
+  );
+  if (name.isNotEmpty) return name;
+
+  final firstName = _nestedRead(student, const ['first_name', 'firstName'], fallback: '');
+  final lastName = _nestedRead(student, const ['last_name', 'lastName'], fallback: '');
+  final combined = [firstName, lastName].where((part) => part.isNotEmpty).join(' ').trim();
+  if (combined.isNotEmpty) return combined;
+
+  return _nestedRead(student, const ['email', 'student_email', 'roll_no', 'id', 'student_id'], fallback: 'Student');
+}
+
 String _nestedRead(
   Map<String, dynamic> item,
   List<String> keys, {
@@ -591,12 +603,16 @@ String _nestedRead(
   return fallback;
 }
 
-List<dynamic> _extractList(dynamic response, List<String> keys) {
+List<dynamic> _extractList(dynamic response, List<String> keys, {int depth = 0}) {
   if (response is List) return response;
   if (response is Map) {
     for (final key in keys) {
       final value = response[key];
       if (value is List) return value;
+      if (value is Map && depth < 2) {
+        final nested = _extractList(value, keys, depth: depth + 1);
+        if (nested.isNotEmpty) return nested;
+      }
     }
   }
   return const [];
@@ -613,15 +629,29 @@ SessionHistory _sessionHistoryFromMap(Map<String, dynamic> item) {
       0;
   return SessionHistory(
     id: _nestedRead(item, const ['id', 'session_id'], fallback: 'session'),
-    label: _nestedRead(item, const ['date', 'session_date', 'created_at'], fallback: 'Recent'),
-    title: _nestedRead(item, const ['title', 'name', 'label'], fallback: 'Session'),
-    className: _nestedRead(item, const ['class_name', 'name', 'title'],
-        nestedKeys: const ['class'], fallback: 'Class'),
-    department: _nestedRead(item, const ['department', 'department_name'],
-        fallback: 'Department'),
-    semester: _nestedRead(item, const ['semester'], fallback: '-'),
-    batch: _nestedRead(item, const ['batch'], fallback: '-'),
-    group: _nestedRead(item, const ['group', 'section'], fallback: '-'),
+    label: _nestedRead(item, const ['date', 'session_date', 'created_at'],
+        nestedKeys: const ['data', 'session'], fallback: 'Recent'),
+    title: _nestedRead(
+      item,
+      const ['title', 'name', 'label', 'session_title', 'session_name'],
+      nestedKeys: const ['session', 'data'],
+      fallback: 'Session',
+    ),
+    className: _nestedRead(
+      item,
+      const ['class_name', 'name', 'title', 'course_name', 'course'],
+      nestedKeys: const ['class', 'course', 'data'],
+      fallback: 'Class',
+    ),
+    department: _nestedRead(
+      item,
+      const ['department', 'department_name'],
+      nestedKeys: const ['data'],
+      fallback: 'Department',
+    ),
+    semester: _nestedRead(item, const ['semester'], nestedKeys: const ['data'], fallback: '-'),
+    batch: _nestedRead(item, const ['batch'], nestedKeys: const ['data'], fallback: '-'),
+    group: _nestedRead(item, const ['group', 'section'], nestedKeys: const ['data'], fallback: '-'),
     marked: marked,
     total: total,
   );
