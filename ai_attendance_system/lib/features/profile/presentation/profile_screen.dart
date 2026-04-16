@@ -168,7 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<List<_SessionHistoryView>> _buildHistoryCards(
     List<Map<String, dynamic>> sessions,
   ) async {
-    final api = ApiService();
     final cards = <_SessionHistoryView>[];
 
     for (final session in sessions.take(6)) {
@@ -176,14 +175,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Map<String, dynamic> report = const {};
 
       if (sessionId.isNotEmpty) {
-        try {
-          final response = await api.getAttendanceSessionReport(sessionId);
-          if (response is Map<String, dynamic>) {
-            report = response;
-          } else if (response is Map) {
-            report = Map<String, dynamic>.from(response);
-          }
-        } catch (_) {}
+        final response = await _fetchAttendanceSessionReportWithRetry(sessionId);
+        if (response is Map<String, dynamic>) {
+          report = response;
+        } else if (response is Map) {
+          report = Map<String, dynamic>.from(response);
+        }
       }
 
       final present = _intValue(report, ['present', 'present_count'],
@@ -226,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (sessionId == null || sessionId.isEmpty) return const [];
 
     try {
-      final response = await ApiService().getAttendanceSessionReport(sessionId);
+      final response = await _fetchAttendanceSessionReportWithRetry(sessionId);
       final records = _listValue(response, ['students', 'records', 'attendance', 'items']);
       if (records.isNotEmpty) {
         return records.map(_reportStudentFromDynamic).toList();
@@ -234,6 +231,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
 
     return const [];
+  }
+
+  Future<dynamic> _fetchAttendanceSessionReportWithRetry(
+    String sessionId, {
+    int maxAttempts = 3,
+    Duration delay = const Duration(seconds: 2),
+  }) async {
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await ApiService().getAttendanceSessionReport(sessionId);
+        if (response != null && _reportHasData(response)) {
+          return response;
+        }
+      } catch (_) {
+        // ignore transient errors while retrying
+      }
+      if (attempt < maxAttempts) {
+        await Future<void>.delayed(delay);
+      }
+    }
+    return null;
+  }
+
+  bool _reportHasData(dynamic response) {
+    if (response is Map<String, dynamic>) {
+      if (response.containsKey('students') || response.containsKey('records')) {
+        final records = _listValue(response, ['students', 'records', 'attendance', 'items']);
+        if (records.isNotEmpty) return true;
+      }
+      if (response.containsKey('present') || response.containsKey('total') || response.containsKey('attendance_rate')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _selectStudent(Map<String, dynamic> student) async {

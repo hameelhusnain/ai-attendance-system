@@ -107,6 +107,10 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       if (_currentSessionId != null && _currentSessionId!.isNotEmpty) {
         await ApiService().endSession(_currentSessionId!);
         SessionStore.currentSessionId = _currentSessionId;
+        final ended = await _waitForSessionEnd(_currentSessionId!);
+        if (ended) {
+          await _submitAttendance(_currentSessionId!);
+        }
       }
       await Future<void>.delayed(const Duration(milliseconds: 900));
       if (!mounted) return;
@@ -122,6 +126,39 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not stop session: $error')),
       );
+    }
+  }
+
+  Future<bool> _waitForSessionEnd(String sessionId) async {
+    const maxAttempts = 5;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await ApiService().getSessionById(sessionId);
+        if (response is Map) {
+          final status = _nestedRead(
+            Map<String, dynamic>.from(response),
+            const ['status', 'session_status', 'state'],
+            nestedKeys: const ['data', 'session'],
+          ).toLowerCase();
+          if (status.contains('end') || status.contains('closed') || status.contains('finish') || status.contains('complete')) {
+            return true;
+          }
+        }
+      } catch (_) {
+        // ignore transient errors while polling
+      }
+      if (attempt < maxAttempts) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    }
+    return false;
+  }
+
+  Future<void> _submitAttendance(String sessionId) async {
+    try {
+      await ApiService().submitAttendance(sessionId, <String, dynamic>{});
+    } catch (_) {
+      // Optional submission; continue even if backend does not require this call.
     }
   }
 
