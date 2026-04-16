@@ -17,6 +17,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   bool _loading = true;
   List<Map<String, dynamic>> _sessions = const [];
   List<Map<String, dynamic>> _students = const [];
+  String? _selectedSessionId;
+  List<Map<String, dynamic>> _reportRows = const [];
 
   @override
   void initState() {
@@ -33,12 +35,63 @@ class _ReportsScreenState extends State<ReportsScreen> {
     try {
       studentsResponse = await ApiService().getStudents();
     } catch (_) {}
+
+    final sessions = _extractList(sessionsResponse, const ['sessions', 'items', 'data']);
+    final students = _extractList(studentsResponse, const ['students', 'items', 'data']);
+    final selectedSessionId = _findSessionId(sessions.isNotEmpty ? sessions.first : null);
+
     if (!mounted) return;
     setState(() {
-      _sessions = _extractList(sessionsResponse, const ['sessions', 'items', 'data']);
-      _students = _extractList(studentsResponse, const ['students', 'items', 'data']);
+      _sessions = sessions;
+      _students = students;
+      _selectedSessionId = selectedSessionId;
       _loading = false;
     });
+
+    if (selectedSessionId != null) {
+      await _loadAttendanceReport(selectedSessionId);
+    }
+  }
+
+  String? _findSessionId(Map<String, dynamic>? session) {
+    if (session == null) return null;
+    final id = _readValue(session, const ['id', 'session_id', 'sessionId']);
+    return id.isNotEmpty ? id : null;
+  }
+
+  Future<void> _loadAttendanceReport(String sessionId) async {
+    dynamic reportResponse;
+    try {
+      reportResponse = await ApiService().getAttendanceSessionReport(sessionId);
+    } catch (_) {
+      reportResponse = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectedSessionId = sessionId;
+      _reportRows = _extractReportRows(reportResponse);
+    });
+  }
+
+  List<Map<String, dynamic>> _extractReportRows(dynamic response) {
+    if (response is List) {
+      return response.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+    }
+    if (response is Map) {
+      return _extractList(response, const ['students', 'records', 'attendance', 'items']);
+    }
+    return const [];
+  }
+
+  int get _presentCount {
+    return _reportRows.where((row) {
+      final status = _readValue(row, const ['final_status', 'status', 'attendance_status']).toLowerCase();
+      return status.contains('present');
+    }).length;
+  }
+
+  int get _absentCount {
+    return _reportRows.length - _presentCount;
   }
 
   @override
@@ -113,43 +166,135 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           .bodyMedium
                           ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                     )
-                  else
+                  else ...[
                     for (final session in _sessions.take(8))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _readValue(session, const ['title', 'name', 'label'],
-                                      fallback: 'Session'),
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                      InkWell(
+                        onTap: () {
+                          final sessionId = _findSessionId(session);
+                          if (sessionId != null) {
+                            _loadAttendanceReport(sessionId);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _selectedSessionId != null && _selectedSessionId == _findSessionId(session)
+                                ? AppTheme.surfaceCard.withOpacity(0.08)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _readValue(session, const ['title', 'name', 'label'],
+                                        fallback: 'Session'),
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  Text(
+                                    _readValue(session, const ['date', 'session_date', 'created_at'],
+                                        fallback: 'Recent'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                                  ),
+                                ],
+                              ),
+                              _StatusChip(
+                                status: _readValue(
+                                  session,
+                                  const ['status', 'session_status'],
+                                  fallback: 'Recorded',
                                 ),
-                                Text(
-                                  _readValue(session, const ['date', 'session_date', 'created_at'],
-                                      fallback: 'Recent'),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    AppSpacing.gap16,
+                    if (_selectedSessionId != null)
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected Session Attendance',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            AppSpacing.gap12,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _SummaryCard(
+                                    title: 'Present',
+                                    value: _presentCount.toString(),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _SummaryCard(
+                                    title: 'Absent',
+                                    value: _absentCount.toString(),
+                                  ),
                                 ),
                               ],
                             ),
-                            _StatusChip(
-                              status: _readValue(
-                                session,
-                                const ['status', 'session_status'],
-                                fallback: 'Recorded',
-                              ),
+                            AppSpacing.gap16,
+                            Text(
+                              'Students',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
+                            AppSpacing.gap12,
+                            if (_reportRows.isEmpty)
+                              Text(
+                                'No attendance rows available for this session.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                              )
+                            else
+                              Column(
+                                children: [
+                                  for (final row in _reportRows.take(12))
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              _readValue(row, const ['full_name', 'student_name', 'name'],
+                                                  fallback: 'Student'),
+                                              style: Theme.of(context).textTheme.bodyMedium,
+                                            ),
+                                          ),
+                                          Text(
+                                            _readValue(row, const ['final_status', 'status', 'attendance_status'],
+                                                fallback: 'ABSENT'),
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
                           ],
                         ),
                       ),
+                  ],
                 ],
               ),
             ),

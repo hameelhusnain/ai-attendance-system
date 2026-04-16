@@ -9,7 +9,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_spacing.dart';
-import '../../../core/widgets/app_text_field.dart';
 import '../../../shared/services/api_service.dart';
 import '../../../shared/services/session_store.dart';
 
@@ -21,30 +20,20 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late final TextEditingController _studentSearchController;
-
   bool _loading = true;
-  bool _loadingStudentHistory = false;
-  bool _studentSearchExpanded = true;
   int _tabIndex = 0;
-  String _studentQuery = '';
 
-  List<Map<String, dynamic>> _students = const [];
   List<_SessionHistoryView> _historyCards = const [];
   List<_ReportStudent> _breakdown = const [];
-  Map<String, dynamic>? _selectedStudent;
-  List<_StudentHistoryEntry> _studentHistory = const [];
 
   @override
   void initState() {
     super.initState();
-    _studentSearchController = TextEditingController();
     _loadReportData();
   }
 
   @override
   void dispose() {
-    _studentSearchController.dispose();
     super.dispose();
   }
 
@@ -111,7 +100,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadReportData() async {
     final api = ApiService();
     dynamic sessionsResponse;
-    dynamic studentsResponse;
     final query = _reportQueryParameters();
 
     try {
@@ -119,40 +107,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
     sessionsResponse ??= await _safeCall(() => api.getSessions());
 
-    try {
-      studentsResponse = await api.getStudentsFiltered(queryParameters: query);
-    } catch (_) {}
-    studentsResponse ??= await _safeCall(() => api.getStudents());
-
     final sessionsRaw = _extractResponseList(sessionsResponse, const ['sessions', 'items', 'data']);
-    final studentsRaw = _extractResponseList(studentsResponse, const ['students', 'items', 'data']);
-
-    final students = _normalizeStudents(studentsRaw);
     final sessions = _normalizeSessions(sessionsRaw);
-
-    final resolvedStudents = students.isNotEmpty ? students : studentsRaw;
     final resolvedSessions = sessions.isNotEmpty ? sessions : sessionsRaw;
     final historyCards = await _buildHistoryCards(resolvedSessions);
     final activeSessionId = SessionStore.currentSessionId;
-    final breakdown = await _loadBreakdown(
-      activeSessionId != null && activeSessionId.isNotEmpty
-          ? activeSessionId
-          : historyCards.isNotEmpty
-              ? historyCards.first.sessionId
-              : null,
-    );
-    final selectedStudent = resolvedStudents.isNotEmpty ? resolvedStudents.first : null;
-    final studentHistory = selectedStudent != null
-        ? await _fetchStudentHistoryFor(selectedStudent)
-        : const <_StudentHistoryEntry>[];
+    final selectedReportSessionId = activeSessionId != null && activeSessionId.isNotEmpty
+        ? activeSessionId
+        : historyCards.isNotEmpty
+            ? historyCards.first.sessionId
+            : null;
+    final breakdown = await _loadBreakdown(selectedReportSessionId);
 
     if (!mounted) return;
     setState(() {
-      _students = resolvedStudents;
       _historyCards = historyCards;
       _breakdown = breakdown;
-      _selectedStudent = selectedStudent;
-      _studentHistory = studentHistory;
       _loading = false;
     });
   }
@@ -220,15 +190,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<List<_ReportStudent>> _loadBreakdown(String? sessionId) async {
-    if (sessionId == null || sessionId.isEmpty) return const [];
+    if (sessionId == null || sessionId.isEmpty) {
+      return const [];
+    }
 
     try {
       final response = await _fetchAttendanceSessionReportWithRetry(sessionId);
-      final records = _listValue(response, ['students', 'records', 'attendance', 'items']);
+      final records = _extractReportItems(response);
       if (records.isNotEmpty) {
         return records.map(_reportStudentFromDynamic).toList();
       }
-    } catch (_) {}
+    } catch (_) {
+      // ignore attendance load errors for UI fallback
+    }
 
     return const [];
   }
@@ -238,83 +212,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     int maxAttempts = 3,
     Duration delay = const Duration(seconds: 2),
   }) async {
+    dynamic lastResponse;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         final response = await ApiService().getAttendanceSessionReport(sessionId);
-        if (response != null && _reportHasData(response)) {
+        lastResponse = response;
+        if (response != null) {
           return response;
         }
-      } catch (_) {
-        // ignore transient errors while retrying
+      } catch (error) {
+        lastResponse = 'Request error: ${error.toString()}';
       }
       if (attempt < maxAttempts) {
         await Future<void>.delayed(delay);
       }
     }
-    return null;
+    return lastResponse;
   }
 
-  bool _reportHasData(dynamic response) {
-    if (response is Map<String, dynamic>) {
-      if (response.containsKey('students') || response.containsKey('records')) {
-        final records = _listValue(response, ['students', 'records', 'attendance', 'items']);
-        if (records.isNotEmpty) return true;
-      }
-      if (response.containsKey('present') || response.containsKey('total') || response.containsKey('attendance_rate')) {
-        return true;
-      }
+  List<Map<String, dynamic>> _extractReportItems(dynamic response) {
+    if (response is List) {
+      return response
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
     }
-    return false;
+    return _listValue(response, ['students', 'records', 'attendance', 'items'])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 
-  Future<void> _selectStudent(Map<String, dynamic> student) async {
-    setState(() {
-      _selectedStudent = student;
-      _loadingStudentHistory = true;
-    });
-
-    final history = await _fetchStudentHistoryFor(student);
-    if (!mounted) return;
-
-    setState(() {
-      _studentHistory = history;
-      _loadingStudentHistory = false;
-      _studentSearchExpanded = false;
-    });
-  }
-
-  Future<List<_StudentHistoryEntry>> _fetchStudentHistoryFor(
-    Map<String, dynamic> student,
-  ) async {
-    final studentId = _stringValue(student, ['id', 'student_id']);
-    if (studentId.isNotEmpty) {
-      try {
-        final response = await ApiService().getStudentAttendanceHistory(studentId);
-        final records = _listValue(response, ['history', 'records', 'sessions', 'items']);
-        if (records.isNotEmpty) {
-          return records.map(_studentHistoryFromDynamic).toList();
-        }
-      } catch (_) {}
-    }
-
-    return const [];
-  }
-
-  List<Map<String, dynamic>> _normalizeStudents(List<dynamic> students) {
-    final normalized = <Map<String, dynamic>>[];
-    for (final student in students) {
-      if (student is! Map) continue;
-      final map = Map<String, dynamic>.from(student as Map);
-      if (_matchesSelectedClass(map)) normalized.add(map);
-    }
-    return normalized;
-  }
 
   List<Map<String, dynamic>> _normalizeSessions(List<dynamic> sessions) {
     final normalized = <Map<String, dynamic>>[];
     for (final session in sessions) {
       if (session is! Map) continue;
-      final map = Map<String, dynamic>.from(session as Map);
+      final map = Map<String, dynamic>.from(session);
       if (_matchesSelectedClass(map)) normalized.add(map);
     }
     return normalized;
@@ -600,278 +534,158 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildByStudentTab(BuildContext context) {
-    final filteredStudents = _students.where((student) {
-      if (_studentQuery.trim().isEmpty) return true;
-      final query = _studentQuery.toLowerCase();
-      final name = _stringValue(
-        student,
-        ['full_name', 'student_full_name', 'student_name', 'name'],
-      ).toLowerCase();
-      final id = _stringValue(student, ['id', 'student_id']).toLowerCase();
-      return name.contains(query) || id.contains(query);
-    }).toList();
-
-    final selectedStudent = _selectedStudent;
-    final studentSummary = _summarizeStudentHistory(selectedStudent, _studentHistory);
+    final presentCount = _breakdown.where((student) => student.status.toUpperCase() == 'PRESENT').length;
+    final absentCount = _breakdown.length - presentCount;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: () =>
-                    setState(() => _studentSearchExpanded = !_studentSearchExpanded),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Select A Student',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                      Icon(
-                        _studentSearchExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        color: AppTheme.textSecondaryFor(context),
-                      ),
-                    ],
-                  ),
-                ),
+        Row(
+          children: [
+            Expanded(
+              child: _SummaryStatCard(
+                title: 'Present',
+                value: presentCount.toString(),
+                color: AppTheme.brandGreen,
+                backgroundColor: AppTheme.brandGreen.withOpacity(0.14),
               ),
-              if (_studentSearchExpanded) ...[
-                AppSpacing.gap12,
-                AppTextField(
-                  label: 'Search Student',
-                  hintText: 'Search by name or ID',
-                  controller: _studentSearchController,
-                  requiredField: false,
-                  prefixIcon: const Icon(Icons.search),
-                  onChanged: (value) => setState(() => _studentQuery = value),
-                ),
-                AppSpacing.gap12,
-                if (filteredStudents.isEmpty)
-                  Text(
-                    'No students found.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                  )
-                else
-                  ListView.separated(
-                    itemCount: filteredStudents.length,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    separatorBuilder: (_, _) => const Divider(height: 16),
-                    itemBuilder: (context, index) {
-                      final student = filteredStudents[index];
-                      final selectedId = _stringValue(_selectedStudent, ['id', 'student_id']);
-                      final studentId = _stringValue(student, ['id', 'student_id']);
-                      final isSelected = selectedId.isNotEmpty && selectedId == studentId;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: (isSelected
-                                  ? AppTheme.brandGreen
-                                  : AppTheme.accentPurple)
-                              .withOpacity(0.14),
-                          child: Text(_initials(_stringValue(
-                            student,
-                            ['full_name', 'student_full_name', 'student_name', 'name'],
-                          ))),
-                        ),
-                        title: Text(_stringValue(
-                          student,
-                          ['full_name', 'student_full_name', 'student_name', 'name'],
-                          'Student',
-                        )),
-                        subtitle: Text(_stringValue(student, ['id', 'student_id'], '')),
-                        trailing: Icon(
-                          isSelected ? Icons.check_circle : Icons.chevron_right,
-                          color: isSelected
-                              ? AppTheme.brandGreen
-                              : AppTheme.textSecondaryFor(context),
-                        ),
-                        onTap: () => _selectStudent(student),
-                      );
-                    },
-                  ),
-              ],
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _SummaryStatCard(
+                title: 'Absent',
+                value: absentCount.toString(),
+                color: AppTheme.danger,
+                backgroundColor: AppTheme.danger.withOpacity(0.14),
+              ),
+            ),
+          ],
         ),
         AppSpacing.gap16,
-        if (selectedStudent == null)
+        if (_breakdown.isEmpty)
           AppCard(
-            child: Text(
-              'Select a student to see attendance details.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'No student attendance data available for this session.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+              ),
             ),
           )
         else
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _selectedStudent == null ? null : _exportStudentReport,
-                    icon: const Icon(Icons.download_for_offline_outlined),
-                    label: const Text('Generate Student Report'),
-                  ),
-                ),
-                AppSpacing.gap12,
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppTheme.accentPurple.withOpacity(0.14),
-                      child: Text(
-                        _initials(_stringValue(
-                          selectedStudent,
-                          ['full_name', 'student_full_name', 'student_name', 'name'],
-                        )),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: AppTheme.accentPurple,
-                              fontWeight: FontWeight.w700,
+          ListView.builder(
+            itemCount: _breakdown.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemBuilder: (context, index) {
+              final student = _breakdown[index];
+              final statusIsPresent = student.status.toUpperCase() == 'PRESENT';
+              final engagementLabel = student.engagement.isEmpty ? 'N/A' : student.engagement;
+              final engagementColor = engagementLabel.toUpperCase() == 'ENGAGED'
+                  ? AppTheme.brandGreen
+                  : engagementLabel.toUpperCase() == 'DISTRACTED'
+                      ? AppTheme.accentOrange
+                      : engagementLabel.toUpperCase() == 'SLEEPING'
+                          ? AppTheme.danger
+                          : AppTheme.textSecondary;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: AppCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    student.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    student.subtitle,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                                  ),
+                                ],
+                              ),
                             ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _stringValue(
-                              selectedStudent,
-                              ['full_name', 'student_full_name', 'student_name', 'name'],
-                              'Student',
+                            _StatusPill(
+                              label: student.status.toUpperCase(),
+                              color: statusIsPresent ? AppTheme.brandGreen : AppTheme.danger,
                             ),
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 2),
+                          ],
+                        ),
+                        AppSpacing.gap12,
+                        _StatusPill(
+                          label: engagementLabel,
+                          color: engagementColor,
+                        ),
+                        if (statusIsPresent && student.confidence > 0) ...[
+                          AppSpacing.gap12,
                           Text(
-                            _stringValue(selectedStudent, ['id', 'student_id'], ''),
+                            'Confidence: ${(student.confidence * 100).toStringAsFixed(0)}%',
                             style: Theme.of(context)
                                 .textTheme
-                                .bodySmall
+                                .bodyMedium
                                 ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                           ),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
-                AppSpacing.gap16,
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MiniStatCard(
-                        title: 'Present',
-                        value: studentSummary.present.toString(),
-                        color: AppTheme.brandGreen,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _MiniStatCard(
-                        title: 'Absent',
-                        value: studentSummary.absent.toString(),
-                        color: AppTheme.accentOrange,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _MiniStatCard(
-                        title: 'Rate',
-                        value: '${studentSummary.rate.toStringAsFixed(0)}%',
-                        color: AppTheme.accentPurple,
-                      ),
-                    ),
-                  ],
-                ),
-                AppSpacing.gap16,
-                if (_loadingStudentHistory)
-                  const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                else if (_studentHistory.isEmpty)
-                  Text(
-                    'No attendance history available for this student.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                  )
-                else
-                  ListView.separated(
-                    itemCount: _studentHistory.length,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    separatorBuilder: (_, _) => const Divider(height: 20),
-                    itemBuilder: (context, index) {
-                      final entry = _studentHistory[index];
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Column(
-                            children: [
-                              Container(
-                                height: 10,
-                                width: 10,
-                                decoration: BoxDecoration(
-                                  color: entry.color,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              Container(
-                                height: 46,
-                                width: 2,
-                                color: AppTheme.borderFor(context),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${entry.dateLabel} — ${entry.title}',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  entry.note,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: AppTheme.textSecondaryFor(context),
-                                      ),
-                                ),
-                              ],
+                        AppSpacing.gap16,
+                        Row(
+                          children: [
+                            _AttendanceStatChip(
+                              icon: '👁',
+                              value: student.engagedCount.toString(),
+                              label: 'Engaged',
+                              color: AppTheme.brandGreen,
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                            const SizedBox(width: 8),
+                            _AttendanceStatChip(
+                              icon: '😵',
+                              value: student.distractedCount.toString(),
+                              label: 'Distracted',
+                              color: AppTheme.accentOrange,
+                            ),
+                            const SizedBox(width: 8),
+                            _AttendanceStatChip(
+                              icon: '😴',
+                              value: student.sleepingCount.toString(),
+                              label: 'Sleeping',
+                              color: AppTheme.danger,
+                            ),
+                            const SizedBox(width: 8),
+                            _AttendanceStatChip(
+                              icon: '📱',
+                              value: student.phoneCount.toString(),
+                              label: 'Phone',
+                              color: AppTheme.textSecondary,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-              ],
-            ),
+                ),
+              );
+            },
           ),
       ],
     );
@@ -908,41 +722,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _exportStudentReport() async {
-    final student = _selectedStudent;
-    if (student == null) return;
-    final summary = _summarizeStudentHistory(student, _studentHistory);
-    final rows = <List<String>>[
-      [
-        'Student',
-        _stringValue(
-          student,
-          ['full_name', 'student_full_name', 'student_name', 'name'],
-          'Student',
-        ),
-      ],
-      ['ID', _stringValue(student, ['id', 'student_id'])],
-      ['Present', summary.present.toString()],
-      ['Absent', summary.absent.toString()],
-      ['Attendance Rate', '${summary.rate.toStringAsFixed(1)}%'],
-      [],
-      ['Date', 'Status', 'Most Recent Activity'],
-      ..._studentHistory.map((entry) => [
-            entry.dateLabel,
-            entry.title,
-            entry.note,
-          ]),
-    ];
-    await _shareCsv(
-      fileName: '${_safeFileName(_stringValue(
-        student,
-        ['full_name', 'student_full_name', 'student_name', 'name'],
-        'student',
-      ))}_report.csv',
-      rows: rows,
-    );
-  }
-
   Future<void> _shareCsv({
     required String fileName,
     required List<List<String>> rows,
@@ -968,61 +747,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  _StudentSummary _summarizeStudentHistory(
-    Map<String, dynamic>? student,
-    List<_StudentHistoryEntry> history,
-  ) {
-    final present = history.where((entry) => entry.present).length;
-    final absent = history.where((entry) => !entry.present).length;
-    final total = present + absent;
-    final rate = total == 0
-        ? _doubleValue(student, ['attendance_rate', 'rate'], fallback: 0)
-        : (present / total) * 100;
-    return _StudentSummary(
-      present: present,
-      absent: absent,
-      rate: rate,
-    );
-  }
-
   _ReportStudent _reportStudentFromDynamic(dynamic item) {
     final status = _stringValue(
       item,
-      ['status', 'attendance_status', 'remark'],
-      'Present',
-    );
-    final isPresent = _boolValue(item, ['present', 'is_present'],
-        fallback: !status.toLowerCase().contains('absent'));
+      ['final_status', 'status', 'attendance_status', 'remark'],
+      'ABSENT',
+    ).toUpperCase();
+    final isPresent = status == 'PRESENT';
+    final engagement = _stringValue(
+      item,
+      ['final_engagement', 'engagement', 'engaged_status'],
+      '',
+    ).toUpperCase();
+
     return _ReportStudent(
-      id: _stringValue(item, ['id', 'student_id']),
+      id: _stringValue(item, ['student_id', 'id']),
       name: _stringValue(
         item,
         ['full_name', 'student_full_name', 'student_name', 'name'],
         'Student',
       ),
-      subtitle: _stringValue(item, ['roll_no', 'registration_no', 'id']),
+      subtitle: _stringValue(item, ['student_code', 'roll_no', 'registration_no', 'id']),
       status: status,
       present: isPresent,
       color: _statusColor(status, isPresent),
+      confidence: _doubleValue(item, ['confidence', 'confidence_score'], fallback: 0),
+      engagement: engagement,
+      engagedCount: _intValue(item, ['engaged_count', 'engaged'], fallback: 0),
+      distractedCount: _intValue(item, ['distracted_count', 'distracted'], fallback: 0),
+      sleepingCount: _intValue(item, ['sleeping_count', 'sleeping'], fallback: 0),
+      phoneCount: _intValue(item, ['phone_count', 'phone'], fallback: 0),
     );
   }
 
-  _StudentHistoryEntry _studentHistoryFromDynamic(dynamic item) {
-    final status = _stringValue(
-      item,
-      ['status', 'attendance_status'],
-      _boolValue(item, ['present', 'is_present'], fallback: true) ? 'Present' : 'Absent',
-    );
-    final isPresent = _boolValue(item, ['present', 'is_present'],
-        fallback: !status.toLowerCase().contains('absent'));
-    return _StudentHistoryEntry(
-      dateLabel: _stringValue(item, ['date', 'session_date', 'created_at'], 'Recent'),
-      title: status,
-      note: _stringValue(item, ['note', 'remark', 'details'], 'Attendance recorded'),
-      present: isPresent,
-      color: _statusColor(status, isPresent),
-    );
-  }
 }
 
 class _ReportTabs extends StatelessWidget {
@@ -1116,48 +873,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _MiniStatCard extends StatelessWidget {
-  const _MiniStatCard({
-    required this.title,
-    required this.value,
-    required this.color,
-  });
-
-  final String title;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceAltFor(context),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _CountPair extends StatelessWidget {
   const _CountPair({
     required this.label,
@@ -1221,6 +936,107 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
+class _SummaryStatCard extends StatelessWidget {
+  const _SummaryStatCard({
+    required this.title,
+    required this.value,
+    required this.color,
+    required this.backgroundColor,
+  });
+
+  final String title;
+  final String value;
+  final Color color;
+  final Color backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttendanceStatChip extends StatelessWidget {
+  const _AttendanceStatChip({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final String icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceAltFor(context),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(icon),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SessionHistoryView {
   const _SessionHistoryView({
     required this.sessionId,
@@ -1249,6 +1065,12 @@ class _ReportStudent {
     required this.status,
     required this.present,
     required this.color,
+    required this.confidence,
+    required this.engagement,
+    required this.engagedCount,
+    required this.distractedCount,
+    required this.sleepingCount,
+    required this.phoneCount,
   });
 
   final String id;
@@ -1257,37 +1079,16 @@ class _ReportStudent {
   final String status;
   final bool present;
   final Color color;
+  final double confidence;
+  final String engagement;
+  final int engagedCount;
+  final int distractedCount;
+  final int sleepingCount;
+  final int phoneCount;
 
   String get initials => _initials(name);
 }
 
-class _StudentHistoryEntry {
-  const _StudentHistoryEntry({
-    required this.dateLabel,
-    required this.title,
-    required this.note,
-    required this.present,
-    required this.color,
-  });
-
-  final String dateLabel;
-  final String title;
-  final String note;
-  final bool present;
-  final Color color;
-}
-
-class _StudentSummary {
-  const _StudentSummary({
-    required this.present,
-    required this.absent,
-    required this.rate,
-  });
-
-  final int present;
-  final int absent;
-  final double rate;
-}
 
 String _joinNonEmpty(List<String> values, {String separator = ' • '}) {
   final filtered = values.where((value) => value.trim().isNotEmpty).toList();
@@ -1347,20 +1148,6 @@ double _doubleValue(dynamic item, List<String> keys, {double fallback = 0}) {
   if (value is double) return value;
   if (value is int) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? fallback;
-}
-
-bool _boolValue(dynamic item, List<String> keys, {bool fallback = false}) {
-  final value = _findValue(
-    item,
-    keys,
-    nestedKeys: const ['class', 'teacher', 'student', 'session', 'data'],
-  );
-  if (value is bool) return value;
-  if (value is num) return value != 0;
-  final text = value?.toString().toLowerCase();
-  if (text == 'true') return true;
-  if (text == 'false') return false;
-  return fallback;
 }
 
 List<dynamic> _listValue(dynamic item, List<String> keys) {

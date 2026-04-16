@@ -63,10 +63,6 @@ class ApiService {
       'Accept': 'application/json',
       'ngrok-skip-browser-warning': 'true',
     };
-    final apiKey = SessionStore.apiKey;
-    if (apiKey != null && apiKey.trim().isNotEmpty) {
-      headers['x-api-key'] = apiKey.trim();
-    }
     if (auth && _token != null) {
       headers['Authorization'] = 'Bearer $_token';
     }
@@ -81,10 +77,6 @@ class ApiService {
       'Accept': 'application/json',
       'ngrok-skip-browser-warning': 'true',
     };
-    final apiKey = SessionStore.apiKey;
-    if (apiKey != null && apiKey.trim().isNotEmpty) {
-      headers['x-api-key'] = apiKey.trim();
-    }
     if (_token != null) {
       headers['Authorization'] = 'Bearer $_token';
     }
