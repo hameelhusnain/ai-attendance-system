@@ -22,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   int _tabIndex = 0;
+  String? _expandedStudentId;
 
   List<_SessionHistoryView> _historyCards = const [];
   List<_ReportStudent> _breakdown = const [];
@@ -582,6 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             physics: const NeverScrollableScrollPhysics(),
             itemBuilder: (context, index) {
               final student = _breakdown[index];
+              final expanded = _expandedStudentId == student.id;
               final statusIsPresent = student.status.toUpperCase() == 'PRESENT';
               final engagementLabel = student.engagement.isEmpty ? 'N/A' : student.engagement;
               final engagementColor = engagementLabel.toUpperCase() == 'ENGAGED'
@@ -592,95 +594,142 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? AppTheme.danger
                           : AppTheme.textSecondary;
 
+              final totalBehavior = student.engagedCount + student.distractedCount + student.sleepingCount + student.phoneCount;
+              final engagedPercent = totalBehavior > 0 ? student.engagedCount / totalBehavior : 0.0;
+              final distractedPercent = totalBehavior > 0 ? student.distractedCount / totalBehavior : 0.0;
+              final sleepingPercent = totalBehavior > 0 ? student.sleepingCount / totalBehavior : 0.0;
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: AppCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () {
+                    setState(() {
+                      _expandedStudentId = expanded ? null : student.id;
+                    });
+                  },
+                  child: AppCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      student.name,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      student.subtitle.isNotEmpty ? student.subtitle : 'Student code unavailable',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
                                 children: [
-                                  Text(
-                                    student.name,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                  _StatusPill(
+                                    label: student.status.toUpperCase(),
+                                    color: statusIsPresent ? AppTheme.brandGreen : AppTheme.danger,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    student.subtitle,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    expanded ? Icons.expand_less : Icons.expand_more,
+                                    size: 20,
+                                    color: AppTheme.textSecondaryFor(context),
                                   ),
                                 ],
                               ),
-                            ),
-                            _StatusPill(
-                              label: student.status.toUpperCase(),
-                              color: statusIsPresent ? AppTheme.brandGreen : AppTheme.danger,
+                            ],
+                          ),
+                          AppSpacing.gap12,
+                          _StatusPill(
+                            label: engagementLabel,
+                            color: engagementColor,
+                          ),
+                          if (statusIsPresent && student.confidence > 0) ...[
+                            AppSpacing.gap12,
+                            Text(
+                              'Confidence: ${(student.confidence * 100).toStringAsFixed(0)}%',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: AppTheme.textSecondaryFor(context)),
                             ),
                           ],
-                        ),
-                        AppSpacing.gap12,
-                        _StatusPill(
-                          label: engagementLabel,
-                          color: engagementColor,
-                        ),
-                        if (statusIsPresent && student.confidence > 0) ...[
-                          AppSpacing.gap12,
-                          Text(
-                            'Confidence: ${(student.confidence * 100).toStringAsFixed(0)}%',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                          AppSpacing.gap16,
+                          Row(
+                            children: [
+                              _AttendanceStatChip(
+                                icon: '👁',
+                                value: student.engagedCount.toString(),
+                                label: 'Engaged',
+                                color: AppTheme.brandGreen,
+                              ),
+                              const SizedBox(width: 8),
+                              _AttendanceStatChip(
+                                icon: '😵',
+                                value: student.distractedCount.toString(),
+                                label: 'Distracted',
+                                color: AppTheme.accentOrange,
+                              ),
+                              const SizedBox(width: 8),
+                              _AttendanceStatChip(
+                                icon: '😴',
+                                value: student.sleepingCount.toString(),
+                                label: 'Sleeping',
+                                color: AppTheme.danger,
+                              ),
+                            ],
                           ),
-                        ],
-                        AppSpacing.gap16,
-                        Row(
-                          children: [
-                            _AttendanceStatChip(
-                              icon: '👁',
-                              value: student.engagedCount.toString(),
+                          if (expanded) ...[
+                            AppSpacing.gap16,
+                            Text(
+                              'Engagement Breakdown',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            AppSpacing.gap12,
+                            _buildPercentageRow(
+                              context,
                               label: 'Engaged',
+                              percent: engagedPercent,
                               color: AppTheme.brandGreen,
                             ),
-                            const SizedBox(width: 8),
-                            _AttendanceStatChip(
-                              icon: '😵',
-                              value: student.distractedCount.toString(),
+                            AppSpacing.gap8,
+                            _buildPercentageRow(
+                              context,
                               label: 'Distracted',
+                              percent: distractedPercent,
                               color: AppTheme.accentOrange,
                             ),
-                            const SizedBox(width: 8),
-                            _AttendanceStatChip(
-                              icon: '😴',
-                              value: student.sleepingCount.toString(),
+                            AppSpacing.gap8,
+                            _buildPercentageRow(
+                              context,
                               label: 'Sleeping',
+                              percent: sleepingPercent,
                               color: AppTheme.danger,
                             ),
-                            const SizedBox(width: 8),
-                            _AttendanceStatChip(
-                              icon: '📱',
-                              value: student.phoneCount.toString(),
-                              label: 'Phone',
-                              color: AppTheme.textSecondary,
-                            ),
                           ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -767,7 +816,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ['full_name', 'student_full_name', 'student_name', 'name'],
         'Student',
       ),
-      subtitle: _stringValue(item, ['student_code', 'roll_no', 'registration_no', 'id']),
+      subtitle: _stringValue(item, ['student_code', 'code', 'roll_no', 'registration_no', 'student_id', 'id']),
       status: status,
       present: isPresent,
       color: _statusColor(status, isPresent),
@@ -1035,6 +1084,53 @@ class _AttendanceStatChip extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildPercentageRow(
+  BuildContext context, {
+  required String label,
+  required double percent,
+  required Color color,
+}) {
+  return Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                Text(
+                  '${(percent * 100).toStringAsFixed(0)}%',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                minHeight: 8,
+                value: percent.clamp(0.0, 1.0),
+                backgroundColor: AppTheme.surfaceAltFor(context),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 class _SessionHistoryView {
