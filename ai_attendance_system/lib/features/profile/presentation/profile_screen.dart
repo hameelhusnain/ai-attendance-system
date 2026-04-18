@@ -68,13 +68,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   int get _thisSessionPresent {
+    if (_breakdown.isNotEmpty) return _breakdown.where((student) => student.present).length;
     if (_historyCards.isNotEmpty) return _historyCards.first.present;
-    return _breakdown.where((student) => student.present).length;
+    return 0;
   }
 
   int get _thisSessionAbsent {
+    if (_breakdown.isNotEmpty) return _breakdown.where((student) => !student.present).length;
     if (_historyCards.isNotEmpty) return _historyCards.first.absent;
-    return _breakdown.where((student) => !student.present).length;
+    return 0;
   }
 
   Map<String, dynamic> _reportQueryParameters() {
@@ -676,21 +678,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Row(
                             children: [
                               _AttendanceStatChip(
-                                icon: '👁',
                                 value: student.engagedCount.toString(),
                                 label: 'Engaged',
                                 color: AppTheme.brandGreen,
                               ),
                               const SizedBox(width: 8),
                               _AttendanceStatChip(
-                                icon: '😵',
                                 value: student.distractedCount.toString(),
                                 label: 'Distracted',
                                 color: AppTheme.accentOrange,
                               ),
                               const SizedBox(width: 8),
                               _AttendanceStatChip(
-                                icon: '😴',
                                 value: student.sleepingCount.toString(),
                                 label: 'Sleeping',
                                 color: AppTheme.danger,
@@ -1032,13 +1031,11 @@ class _SummaryStatCard extends StatelessWidget {
 
 class _AttendanceStatChip extends StatelessWidget {
   const _AttendanceStatChip({
-    required this.icon,
     required this.value,
     required this.label,
     required this.color,
   });
 
-  final String icon;
   final String value;
   final String label;
   final Color color;
@@ -1052,32 +1049,23 @@ class _AttendanceStatChip extends StatelessWidget {
           color: AppTheme.surfaceAltFor(context),
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(icon),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: color,
-                        ),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: color,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
-                  ),
-                ],
-              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppTheme.textSecondaryFor(context)),
             ),
           ],
         ),

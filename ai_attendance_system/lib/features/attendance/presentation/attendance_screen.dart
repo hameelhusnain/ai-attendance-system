@@ -104,6 +104,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         final present =
                             _readValue(session, const ['present', 'present_count', 'marked']);
                         final total = _readValue(session, const ['total', 'total_students']);
+                        final absent = _readValue(session, const ['absent', 'absent_count']);
+                        final presentValue = int.tryParse(present) ?? 0;
+                        final totalValue = int.tryParse(total) ?? 0;
+                        final inferredAbsent = absent.isNotEmpty
+                            ? absent
+                            : totalValue > 0
+                                ? (totalValue - presentValue).toString()
+                                : '';
                         final status = _readValue(
                           session,
                           const ['status', 'session_status'],
@@ -124,9 +132,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               _StatusBadge(status: status),
-                              if (present.isNotEmpty || total.isNotEmpty) ...[
+                              if (present.isNotEmpty || inferredAbsent.isNotEmpty) ...[
                                 const SizedBox(height: 6),
-                                Text('$present/$total'),
+                                if (present.isNotEmpty)
+                                  Text('Present: $present'),
+                                if (inferredAbsent.isNotEmpty)
+                                  Text('Absent: $inferredAbsent'),
                               ],
                             ],
                           ),

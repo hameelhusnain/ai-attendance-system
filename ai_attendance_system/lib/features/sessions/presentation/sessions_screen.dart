@@ -356,9 +356,9 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                         itemBuilder: (context, index) {
                           final student = students[index];
                           final name = _resolveStudentName(student);
-                          final email = _nestedRead(
+                          final studentCode = _nestedRead(
                             student,
-                            const ['email', 'student_email', 'roll_no', 'id', 'student_id'],
+                            const ['student_code', 'code', 'roll_no', 'registration_no', 'student_id', 'id'],
                           );
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -367,7 +367,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                               child: Text(name.isEmpty ? '?' : name.substring(0, 1).toUpperCase()),
                             ),
                             title: Text(name),
-                            subtitle: email.isEmpty ? null : Text(email),
+                            subtitle: studentCode.isEmpty ? null : Text(studentCode),
                           );
                         },
                       );
