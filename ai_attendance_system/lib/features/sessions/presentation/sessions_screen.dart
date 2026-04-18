@@ -411,17 +411,29 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
                           shrinkWrap: true,
                           itemBuilder: (context, index) {
                             final session = sessions[index];
+                            final sessionInfo = [
+                              session.className != 'Class' ? session.className : null,
+                              session.semester != '-' ? session.semester : null,
+                              session.batch != '-' ? session.batch : null,
+                              session.group != '-' ? session.group : null,
+                              session.department != 'Department' ? session.department : null,
+                            ].whereType<String>().where((value) => value.isNotEmpty).join(' • ');
+                            final attendanceText = session.total > 0
+                                ? '${session.marked}/${session.total} • ${session.percentage.toStringAsFixed(1)}%'
+                                : 'Attendance data unavailable';
+
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: Text(session.title),
+                              title: Text(session.title.isNotEmpty ? session.title : session.label),
                               subtitle: Text(
-                                '${session.className} • ${session.semester} • ${session.batch} • ${session.group}',
+                                sessionInfo.isNotEmpty ? sessionInfo : session.label,
                               ),
                               trailing: Text(
-                                '${session.percentage.toStringAsFixed(1)}%',
+                                attendanceText,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: AppTheme.textSecondaryFor(context),
                                     ),
+                                textAlign: TextAlign.right,
                               ),
                               onTap: () => context.go(
                                 '/sessions/${session.id}',
