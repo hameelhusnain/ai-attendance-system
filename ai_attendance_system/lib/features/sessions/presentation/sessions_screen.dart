@@ -592,13 +592,15 @@ String _nestedRead(
   String fallback = '',
   int depth = 0,
 }) {
+  if (depth > 4) return fallback;
+
   for (final key in keys) {
     final value = item[key];
     if (value != null && value.toString().trim().isNotEmpty) {
       return value.toString().trim();
     }
   }
-  if (depth > 2) return fallback;
+
   for (final nestedKey in nestedKeys) {
     final nested = item[nestedKey];
     if (nested is Map) {
@@ -611,7 +613,49 @@ String _nestedRead(
       );
       if (resolved.isNotEmpty) return resolved;
     }
+    if (nested is List) {
+      for (final element in nested) {
+        if (element is Map<String, dynamic>) {
+          final resolved = _nestedRead(
+            Map<String, dynamic>.from(element),
+            keys,
+            nestedKeys: nestedKeys,
+            fallback: fallback,
+            depth: depth + 1,
+          );
+          if (resolved.isNotEmpty) return resolved;
+        }
+      }
+    }
   }
+
+  for (final value in item.values) {
+    if (value is Map<String, dynamic>) {
+      final resolved = _nestedRead(
+        value,
+        keys,
+        nestedKeys: nestedKeys,
+        fallback: fallback,
+        depth: depth + 1,
+      );
+      if (resolved.isNotEmpty) return resolved;
+    }
+    if (value is List) {
+      for (final element in value) {
+        if (element is Map<String, dynamic>) {
+          final resolved = _nestedRead(
+            Map<String, dynamic>.from(element),
+            keys,
+            nestedKeys: nestedKeys,
+            fallback: fallback,
+            depth: depth + 1,
+          );
+          if (resolved.isNotEmpty) return resolved;
+        }
+      }
+    }
+  }
+
   return fallback;
 }
 
@@ -632,11 +676,13 @@ List<dynamic> _extractList(dynamic response, List<String> keys, {int depth = 0})
 
 SessionHistory _sessionHistoryFromMap(Map<String, dynamic> item) {
   final marked = int.tryParse(
-        _nestedRead(item, const ['marked', 'present', 'present_count'], fallback: '0'),
+        _nestedRead(item, const ['marked', 'present', 'present_count', 'attendance_marked', 'attended'],
+            nestedKeys: const ['attendance', 'session', 'data'], fallback: '0'),
       ) ??
       0;
   final total = int.tryParse(
-        _nestedRead(item, const ['total', 'total_students', 'student_count'], fallback: '0'),
+        _nestedRead(item, const ['total', 'total_students', 'student_count', 'capacity', 'size'],
+            nestedKeys: const ['attendance', 'session', 'data'], fallback: '0'),
       ) ??
       0;
   return SessionHistory(
@@ -645,15 +691,15 @@ SessionHistory _sessionHistoryFromMap(Map<String, dynamic> item) {
         nestedKeys: const ['data', 'session'], fallback: 'Recent'),
     title: _nestedRead(
       item,
-      const ['title', 'name', 'label', 'session_title', 'session_name'],
-      nestedKeys: const ['session', 'data'],
-      fallback: 'Session',
+      const ['title', 'name', 'label', 'session_title', 'session_name', 'course_name', 'subject_name', 'subject'],
+      nestedKeys: const ['session', 'data', 'course'],
+      fallback: '',
     ),
     className: _nestedRead(
       item,
-      const ['class_name', 'name', 'title', 'course_name', 'course'],
+      const ['class_name', 'name', 'title', 'course_name', 'course', 'section', 'group', 'batch'],
       nestedKeys: const ['class', 'course', 'data'],
-      fallback: 'Class',
+      fallback: '',
     ),
     department: _nestedRead(
       item,
