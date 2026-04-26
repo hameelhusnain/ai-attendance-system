@@ -85,6 +85,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 0;
   }
 
+  bool get _canExportReport =>
+      _historyCards.isNotEmpty || _breakdown.isNotEmpty;
+
   Map<String, dynamic> _reportQueryParameters() {
     final selectedClass = _selectedClass;
     final query = <String, dynamic>{};
@@ -472,9 +475,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton.icon(
-            onPressed: _historyCards.isEmpty ? null : _exportClassReport,
+            onPressed: _canExportReport ? _exportReportCsv : null,
             icon: const Icon(Icons.download_outlined),
-            label: const Text('Generate Class Report'),
+            label: const Text('Export CSV'),
           ),
         ),
         AppSpacing.gap12,
@@ -559,7 +562,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton.icon(
-            onPressed: _historyCards.isEmpty ? null : _exportClassReport,
+            onPressed: _canExportReport ? _exportReportCsv : null,
             icon: const Icon(Icons.table_view_outlined),
             label: const Text('Export CSV'),
           ),
@@ -664,6 +667,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _canExportReport ? _exportReportCsv : null,
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Export CSV'),
+          ),
+        ),
+        AppSpacing.gap12,
         Row(
           children: [
             Expanded(
@@ -879,7 +891,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _exportClassReport() async {
+  Future<void> _exportReportCsv() async {
     final rows = <List<String>>[
       ['Class', _selectedClassName],
       ['Code', _selectedClassCode],
@@ -898,15 +910,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       [],
-      ['Student', 'Identifier', 'Status', 'Present'],
-      ..._breakdown.map(
-        (student) => [
+      [
+        'Student',
+        'Identifier',
+        'Status',
+        'Present',
+        'Confidence %',
+        'Current Engagement',
+        'Engaged Count',
+        'Distracted Count',
+        'Sleeping Count',
+        'Phone Count',
+        'Engaged %',
+        'Distracted %',
+        'Sleeping %',
+        'Phone %',
+      ],
+      ..._breakdown.map((student) {
+        final totalBehavior = _behaviorTotal(student);
+        return [
           student.name,
           student.subtitle,
           student.status,
           student.present ? 'Yes' : 'No',
-        ],
-      ),
+          (student.confidence * 100).toStringAsFixed(1),
+          student.engagement,
+          student.engagedCount.toString(),
+          student.distractedCount.toString(),
+          student.sleepingCount.toString(),
+          student.phoneCount.toString(),
+          _behaviorPercent(
+            student.engagedCount,
+            totalBehavior,
+          ).toStringAsFixed(1),
+          _behaviorPercent(
+            student.distractedCount,
+            totalBehavior,
+          ).toStringAsFixed(1),
+          _behaviorPercent(
+            student.sleepingCount,
+            totalBehavior,
+          ).toStringAsFixed(1),
+          _behaviorPercent(
+            student.phoneCount,
+            totalBehavior,
+          ).toStringAsFixed(1),
+        ];
+      }),
     ];
     await _shareCsv(
       fileName: '${_safeFileName(_selectedClassName)}_class_report.csv',
@@ -1017,6 +1067,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       sleepingCount: 0,
       phoneCount: 0,
     );
+  }
+
+  int _behaviorTotal(_ReportStudent student) {
+    return student.engagedCount +
+        student.distractedCount +
+        student.sleepingCount +
+        student.phoneCount;
+  }
+
+  double _behaviorPercent(int count, int total) {
+    if (total <= 0) {
+      return 0;
+    }
+    return (count / total) * 100;
   }
 }
 
