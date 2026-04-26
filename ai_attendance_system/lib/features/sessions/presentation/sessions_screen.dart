@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
@@ -22,8 +23,9 @@ class _SessionsScreenState extends State<SessionsScreen>
   bool _running = false;
   bool _starting = false;
   bool _stopping = false;
+  bool _preparingReport = false;
   bool _syncingSession = true;
-  bool _studentsPanelOpen = false;
+  bool _studentsExpanded = false;
   int _markedCount = 0;
   String? _currentSessionId;
   late final AnimationController _blobController;
@@ -199,7 +201,10 @@ class _SessionsScreenState extends State<SessionsScreen>
   Future<void> _stopSession() async {
     if (_stopping || _starting || _syncingSession) return;
 
-    setState(() => _stopping = true);
+    setState(() {
+      _stopping = true;
+      _preparingReport = false;
+    });
 
     try {
       var sessionId = _currentSessionId;
@@ -222,23 +227,29 @@ class _SessionsScreenState extends State<SessionsScreen>
       }
 
       await _submitAttendance(sessionId);
+      if (mounted) {
+        setState(() => _preparingReport = true);
+      }
+      await SessionStore.saveReportSessionId(sessionId);
+      await _warmUpReport(sessionId);
       await SessionStore.clearCurrentSession();
 
       if (!mounted) return;
 
       setState(() {
         _stopping = false;
+        _preparingReport = false;
         _running = false;
         _currentSessionId = null;
         _markedCount = 0;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session stopped successfully.')),
-      );
+      context.go('/profile');
     } catch (error) {
       if (mounted) {
-        setState(() => _stopping = false);
+        setState(() {
+          _stopping = false;
+          _preparingReport = false;
+        });
       }
       await _syncSessionState();
       if (!mounted) return;
@@ -268,6 +279,24 @@ class _SessionsScreenState extends State<SessionsScreen>
     }
 
     return false;
+  }
+
+  Future<void> _warmUpReport(String sessionId) async {
+    const maxAttempts = 3;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await ApiService().getAttendanceSessionReport(sessionId);
+        return;
+      } catch (_) {
+        // Report generation can take a moment after stop. Redirect anyway and
+        // let the report page fall back to class roster data if needed.
+      }
+
+      if (attempt < maxAttempts) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    }
   }
 
   Future<void> _submitAttendance(String sessionId) async {
@@ -536,8 +565,8 @@ class _SessionsScreenState extends State<SessionsScreen>
     return filtered.isNotEmpty ? filtered : students;
   }
 
-  void _toggleStudentsPanel([bool? open]) {
-    setState(() => _studentsPanelOpen = open ?? !_studentsPanelOpen);
+  void _toggleStudentsExpanded([bool? open]) {
+    setState(() => _studentsExpanded = open ?? !_studentsExpanded);
   }
 
   @override
@@ -559,11 +588,6 @@ class _SessionsScreenState extends State<SessionsScreen>
       'instructor',
       'assigned_teacher',
     ], '');
-    final panelWidth = min(
-      isDesktop ? 420.0 : MediaQuery.of(context).size.width * 0.92,
-      MediaQuery.of(context).size.width,
-    );
-
     return Stack(
       children: [
         SingleChildScrollView(
@@ -608,135 +632,6 @@ class _SessionsScreenState extends State<SessionsScreen>
                     ],
                   ),
                 ),
-              if (className.isNotEmpty) AppSpacing.gap16,
-              if (className.isNotEmpty)
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _studentsFuture,
-                  builder: (context, snapshot) {
-                    final students =
-                        snapshot.data ?? const <Map<String, dynamic>>[];
-                    final previewNames = students
-                        .take(3)
-                        .map(_resolveStudentName)
-                        .where((name) => name.isNotEmpty)
-                        .toList();
-
-                    return AppCard(
-                      child: InkWell(
-                        onTap:
-                            snapshot.connectionState == ConnectionState.waiting
-                            ? null
-                            : () => _toggleStudentsPanel(true),
-                        borderRadius: BorderRadius.circular(18),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Row(
-                            children: [
-                              Container(
-                                height: 52,
-                                width: 52,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.brandGreen.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.groups_2_outlined,
-                                  color: AppTheme.brandGreen,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Students',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    if (snapshot.connectionState ==
-                                        ConnectionState.waiting)
-                                      Text(
-                                        'Loading roster...',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppTheme.textSecondaryFor(
-                                                context,
-                                              ),
-                                            ),
-                                      )
-                                    else if (students.isEmpty)
-                                      Text(
-                                        'No students found for this class.',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppTheme.textSecondaryFor(
-                                                context,
-                                              ),
-                                            ),
-                                      )
-                                    else
-                                      Text(
-                                        previewNames.join(' • '),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppTheme.textSecondaryFor(
-                                                context,
-                                              ),
-                                            ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '${students.length}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                  Text(
-                                    'View all',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: AppTheme.textSecondaryFor(
-                                            context,
-                                          ),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.chevron_right_rounded),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              if (className.isNotEmpty) AppSpacing.gap20,
               Center(
                 child: Stack(
                   alignment: Alignment.center,
@@ -821,29 +716,273 @@ class _SessionsScreenState extends State<SessionsScreen>
                   ],
                 ),
               ),
+              if (className.isNotEmpty) AppSpacing.gap16,
+              if (className.isNotEmpty)
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _studentsFuture,
+                  builder: (context, snapshot) {
+                    final students =
+                        snapshot.data ?? const <Map<String, dynamic>>[];
+                    final previewNames = students
+                        .take(3)
+                        .map(_resolveStudentName)
+                        .where((name) => name.isNotEmpty)
+                        .toList();
+
+                    return AppCard(
+                      child: InkWell(
+                        onTap:
+                            snapshot.connectionState == ConnectionState.waiting
+                            ? null
+                            : () => _toggleStudentsExpanded(),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    height: 52,
+                                    width: 52,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.brandGreen.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: const Icon(
+                                      Icons.groups_2_outlined,
+                                      color: AppTheme.brandGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Students',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        if (snapshot.connectionState ==
+                                            ConnectionState.waiting)
+                                          Text(
+                                            'Loading roster...',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      AppTheme.textSecondaryFor(
+                                                        context,
+                                                      ),
+                                                ),
+                                          )
+                                        else if (students.isEmpty)
+                                          Text(
+                                            'No students found for this class.',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      AppTheme.textSecondaryFor(
+                                                        context,
+                                                      ),
+                                                ),
+                                          )
+                                        else
+                                          Text(
+                                            _studentsExpanded
+                                                ? 'Tap again to close the student list.'
+                                                : previewNames.join(' • '),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      AppTheme.textSecondaryFor(
+                                                        context,
+                                                      ),
+                                                ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '${students.length}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      Text(
+                                        _studentsExpanded ? 'Hide' : 'Show all',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color: AppTheme.textSecondaryFor(
+                                                context,
+                                              ),
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  AnimatedRotation(
+                                    turns: _studentsExpanded ? 0.5 : 0,
+                                    duration: const Duration(milliseconds: 220),
+                                    child: const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeInOut,
+                                child: !_studentsExpanded
+                                    ? const SizedBox.shrink()
+                                    : Padding(
+                                        padding: const EdgeInsets.only(top: 16),
+                                        child:
+                                            snapshot.connectionState ==
+                                                ConnectionState.waiting
+                                            ? const Center(
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : students.isEmpty
+                                            ? Text(
+                                                'No students found for this class.',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color:
+                                                          AppTheme.textSecondaryFor(
+                                                            context,
+                                                          ),
+                                                    ),
+                                              )
+                                            : Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Class roster',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleSmall
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    'Students available for attendance in this session.',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color:
+                                                              AppTheme.textSecondaryFor(
+                                                                context,
+                                                              ),
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  ListView.separated(
+                                                    itemCount: students.length,
+                                                    separatorBuilder: (_, _) =>
+                                                        const Divider(
+                                                          height: 20,
+                                                        ),
+                                                    physics:
+                                                        const NeverScrollableScrollPhysics(),
+                                                    shrinkWrap: true,
+                                                    itemBuilder: (context, index) {
+                                                      final student =
+                                                          students[index];
+                                                      final name =
+                                                          _resolveStudentName(
+                                                            student,
+                                                          );
+                                                      final studentCode =
+                                                          _nestedRead(
+                                                            student,
+                                                            const [
+                                                              'student_code',
+                                                              'code',
+                                                              'roll_no',
+                                                              'registration_no',
+                                                              'student_id',
+                                                              'id',
+                                                            ],
+                                                          );
+
+                                                      return ListTile(
+                                                        contentPadding:
+                                                            EdgeInsets.zero,
+                                                        leading: CircleAvatar(
+                                                          backgroundColor:
+                                                              AppTheme
+                                                                  .brandGreen
+                                                                  .withValues(
+                                                                    alpha: 0.12,
+                                                                  ),
+                                                          child: Text(
+                                                            name.isEmpty
+                                                                ? '?'
+                                                                : name
+                                                                      .substring(
+                                                                        0,
+                                                                        1,
+                                                                      )
+                                                                      .toUpperCase(),
+                                                          ),
+                                                        ),
+                                                        title: Text(name),
+                                                        subtitle:
+                                                            studentCode.isEmpty
+                                                            ? null
+                                                            : Text(studentCode),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ],
-          ),
-        ),
-        if (_studentsPanelOpen)
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () => _toggleStudentsPanel(false),
-              child: Container(color: Colors.black.withValues(alpha: 0.28)),
-            ),
-          ),
-        AnimatedPositioned(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          top: 0,
-          bottom: 0,
-          right: _studentsPanelOpen ? 0 : -(panelWidth + 24),
-          width: panelWidth,
-          child: IgnorePointer(
-            ignoring: !_studentsPanelOpen,
-            child: _StudentsPanel(
-              studentsFuture: _studentsFuture,
-              onClose: () => _toggleStudentsPanel(false),
-            ),
           ),
         ),
         if (_stopping || _starting || _syncingSession)
@@ -859,6 +998,8 @@ class _SessionsScreenState extends State<SessionsScreen>
                     Text(
                       _starting
                           ? 'Starting session...'
+                          : _preparingReport
+                          ? 'Preparing report...'
                           : _stopping
                           ? 'Stopping session...'
                           : 'Checking session status...',
@@ -873,140 +1014,6 @@ class _SessionsScreenState extends State<SessionsScreen>
             ),
           ),
       ],
-    );
-  }
-}
-
-class _StudentsPanel extends StatelessWidget {
-  const _StudentsPanel({required this.studentsFuture, required this.onClose});
-
-  final Future<List<Map<String, dynamic>>> studentsFuture;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceCardFor(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppTheme.borderFor(context)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 28,
-                offset: const Offset(-4, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 12, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Students',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Full class roster',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.textSecondaryFor(context),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: onClose,
-                      icon: const Icon(Icons.arrow_forward_ios_rounded),
-                      tooltip: 'Close students',
-                    ),
-                  ],
-                ),
-              ),
-              Divider(height: 1, color: AppTheme.borderFor(context)),
-              Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: studentsFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      );
-                    }
-
-                    final students =
-                        snapshot.data ?? const <Map<String, dynamic>>[];
-                    if (students.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            'No students found for this class.',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppTheme.textSecondaryFor(context),
-                                ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                      itemCount: students.length,
-                      separatorBuilder: (_, _) => const Divider(height: 20),
-                      itemBuilder: (context, index) {
-                        final student = students[index];
-                        final name = _resolveStudentName(student);
-                        final studentCode = _nestedRead(student, const [
-                          'student_code',
-                          'code',
-                          'roll_no',
-                          'registration_no',
-                          'student_id',
-                          'id',
-                        ]);
-
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: CircleAvatar(
-                            backgroundColor: AppTheme.brandGreen.withValues(
-                              alpha: 0.12,
-                            ),
-                            child: Text(
-                              name.isEmpty
-                                  ? '?'
-                                  : name.substring(0, 1).toUpperCase(),
-                            ),
-                          ),
-                          title: Text(name),
-                          subtitle: studentCode.isEmpty
-                              ? null
-                              : Text(studentCode),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

@@ -1,8 +1,8 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -38,16 +38,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  Map<String, dynamic> get _selectedClass => SessionStore.selectedClass ?? const {};
+  Map<String, dynamic> get _selectedClass =>
+      SessionStore.selectedClass ?? const {};
 
   String get _selectedClassId =>
       _stringValue(_selectedClass, ['id', 'class_id', 'classId']);
 
-  String get _selectedClassName => _stringValue(
-        _selectedClass,
-        ['name', 'class_name', 'title'],
-        'Selected Class',
-      );
+  String get _selectedClassName => _stringValue(_selectedClass, [
+    'name',
+    'class_name',
+    'title',
+  ], 'Selected Class');
 
   String get _selectedClassCode {
     final code = _joinNonEmpty([
@@ -63,18 +64,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String get _reportSubtitle {
-    final pieces = [_selectedClassName, _selectedClassCode]..removeWhere((e) => e.isEmpty);
+    final pieces = [_selectedClassName, _selectedClassCode]
+      ..removeWhere((e) => e.isEmpty);
     return pieces.join('  •  ');
   }
 
   int get _thisSessionPresent {
-    if (_breakdown.isNotEmpty) return _breakdown.where((student) => student.present).length;
+    if (_breakdown.isNotEmpty) {
+      return _breakdown.where((student) => student.present).length;
+    }
     if (_historyCards.isNotEmpty) return _historyCards.first.present;
     return 0;
   }
 
   int get _thisSessionAbsent {
-    if (_breakdown.isNotEmpty) return _breakdown.where((student) => !student.present).length;
+    if (_breakdown.isNotEmpty) {
+      return _breakdown.where((student) => !student.present).length;
+    }
     if (_historyCards.isNotEmpty) return _historyCards.first.absent;
     return 0;
   }
@@ -83,8 +89,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final selectedClass = _selectedClass;
     final query = <String, dynamic>{};
     final classId = _stringValue(selectedClass, ['id', 'class_id', 'classId']);
-    final className = _stringValue(selectedClass, ['name', 'class_name', 'title']);
-    final teacherId = _stringValue(selectedClass, ['teacher_id', 'teacherId', 'tutor_id']);
+    final className = _stringValue(selectedClass, [
+      'name',
+      'class_name',
+      'title',
+    ]);
+    final teacherId = _stringValue(selectedClass, [
+      'teacher_id',
+      'teacherId',
+      'tutor_id',
+    ]);
     if (classId.isNotEmpty) {
       query['class_id'] = classId;
       query['classId'] = classId;
@@ -104,23 +118,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final api = ApiService();
     dynamic sessionsResponse;
     final query = _reportQueryParameters();
+    final reportSessionId = await SessionStore.consumeReportSessionId();
+    final classStudents = await _loadClassStudents();
 
     try {
       sessionsResponse = await api.getSessionsFiltered(queryParameters: query);
     } catch (_) {}
     sessionsResponse ??= await _safeCall(() => api.getSessions());
 
-    final sessionsRaw = _extractResponseList(sessionsResponse, const ['sessions', 'items', 'data']);
+    final sessionsRaw = _extractResponseList(sessionsResponse, const [
+      'sessions',
+      'items',
+      'data',
+    ]);
     final sessions = _normalizeSessions(sessionsRaw);
     final resolvedSessions = sessions.isNotEmpty ? sessions : sessionsRaw;
-    final historyCards = await _buildHistoryCards(resolvedSessions);
     final activeSessionId = SessionStore.currentSessionId;
-    final selectedReportSessionId = activeSessionId != null && activeSessionId.isNotEmpty
+    final selectedReportSessionId =
+        reportSessionId != null && reportSessionId.isNotEmpty
+        ? reportSessionId
+        : activeSessionId != null && activeSessionId.isNotEmpty
         ? activeSessionId
-        : historyCards.isNotEmpty
-            ? historyCards.first.sessionId
-            : null;
-    final breakdown = await _loadBreakdown(selectedReportSessionId);
+        : resolvedSessions.isNotEmpty
+        ? _stringValue(resolvedSessions.first, ['id', 'session_id'])
+        : null;
+    final historyCards = await _buildHistoryCards(
+      resolvedSessions,
+      fallbackStudentCount: classStudents.length,
+      prioritizedSessionId: selectedReportSessionId,
+    );
+    final breakdown = await _loadBreakdown(
+      selectedReportSessionId,
+      classStudents,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -139,16 +169,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<List<_SessionHistoryView>> _buildHistoryCards(
-    List<Map<String, dynamic>> sessions,
-  ) async {
+    List<Map<String, dynamic>> sessions, {
+    required int fallbackStudentCount,
+    String? prioritizedSessionId,
+  }) async {
     final cards = <_SessionHistoryView>[];
+    final orderedSessions = [...sessions];
 
-    for (final session in sessions.take(6)) {
+    if (prioritizedSessionId != null && prioritizedSessionId.isNotEmpty) {
+      orderedSessions.sort((a, b) {
+        final aId = _stringValue(a, ['id', 'session_id']);
+        final bId = _stringValue(b, ['id', 'session_id']);
+        if (aId == prioritizedSessionId && bId != prioritizedSessionId) {
+          return -1;
+        }
+        if (aId != prioritizedSessionId && bId == prioritizedSessionId) {
+          return 1;
+        }
+        return 0;
+      });
+    }
+
+    for (final session in orderedSessions.take(6)) {
       final sessionId = _stringValue(session, ['id', 'session_id']);
       Map<String, dynamic> report = const {};
 
       if (sessionId.isNotEmpty) {
-        final response = await _fetchAttendanceSessionReportWithRetry(sessionId);
+        final response = await _fetchAttendanceSessionReportWithRetry(
+          sessionId,
+        );
         if (response is Map<String, dynamic>) {
           report = response;
         } else if (response is Map) {
@@ -156,28 +205,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
-      final present = _intValue(report, ['present', 'present_count'],
-          fallback: _intValue(session, ['present', 'marked'], fallback: 0));
-      final total = _intValue(report, ['total', 'total_students'],
-          fallback: _intValue(session, ['total', 'student_count'], fallback: 0));
-      final absent = _intValue(report, ['absent', 'absent_count'],
-          fallback: total > 0 ? total - present : 0);
-      final percentage = _doubleValue(report, ['attendance_rate', 'percentage'],
-          fallback: total > 0 ? (present / total) * 100 : 0);
+      final present = _intValue(report, [
+        'present',
+        'present_count',
+      ], fallback: _intValue(session, ['present', 'marked'], fallback: 0));
+      final total = _intValue(
+        report,
+        ['total', 'total_students'],
+        fallback: _intValue(session, [
+          'total',
+          'student_count',
+          'total_students',
+        ], fallback: fallbackStudentCount),
+      );
+      final absent = _intValue(report, [
+        'absent',
+        'absent_count',
+      ], fallback: total > 0 ? max(total - present, 0) : fallbackStudentCount);
+      final percentage = _doubleValue(report, [
+        'attendance_rate',
+        'percentage',
+      ], fallback: total > 0 ? (present / total) * 100 : 0);
 
       cards.add(
         _SessionHistoryView(
           sessionId: sessionId,
-          title: _stringValue(
-            session,
-            ['title', 'label', 'name'],
-            _selectedClassName,
-          ),
-          dateLabel: _stringValue(
-            session,
-            ['date', 'session_date', 'created_at'],
-            'Recent Session',
-          ),
+          title: _stringValue(session, [
+            'title',
+            'label',
+            'name',
+          ], _selectedClassName),
+          dateLabel: _stringValue(session, [
+            'date',
+            'session_date',
+            'created_at',
+          ], 'Recent Session'),
           timeLabel: _joinNonEmpty([
             _stringValue(session, ['time', 'start_time']),
             _stringValue(session, ['end_time']),
@@ -192,9 +254,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return cards;
   }
 
-  Future<List<_ReportStudent>> _loadBreakdown(String? sessionId) async {
+  Future<List<_ReportStudent>> _loadBreakdown(
+    String? sessionId,
+    List<Map<String, dynamic>> classStudents,
+  ) async {
     if (sessionId == null || sessionId.isEmpty) {
-      return const [];
+      return classStudents.map(_reportStudentFromClassStudent).toList();
     }
 
     try {
@@ -207,7 +272,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // ignore attendance load errors for UI fallback
     }
 
-    return const [];
+    return classStudents.map(_reportStudentFromClassStudent).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadClassStudents() async {
+    final api = ApiService();
+    final query = _reportQueryParameters();
+    dynamic response;
+
+    try {
+      response = await api.getStudentsFiltered(queryParameters: query);
+    } catch (_) {
+      response = await _safeCall(() => api.getStudents());
+    }
+
+    final students = _extractResponseList(response, const [
+      'students',
+      'items',
+      'data',
+    ]);
+    if (students.isEmpty) {
+      return const [];
+    }
+
+    return students.where(_matchesStudentClass).toList();
+  }
+
+  bool _matchesStudentClass(Map<String, dynamic> student) {
+    if (_selectedClassId.isEmpty && _selectedClassName == 'Selected Class') {
+      return true;
+    }
+
+    final studentClassId = _classValue(student, ['id', 'class_id', 'classId']);
+    if (_selectedClassId.isNotEmpty && studentClassId == _selectedClassId) {
+      return true;
+    }
+
+    final studentClassName = _classValue(student, [
+      'name',
+      'class_name',
+      'title',
+    ]);
+    if (_selectedClassName != 'Selected Class' &&
+        studentClassName.toLowerCase() == _selectedClassName.toLowerCase()) {
+      return true;
+    }
+
+    return false;
   }
 
   Future<dynamic> _fetchAttendanceSessionReportWithRetry(
@@ -218,7 +329,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     dynamic lastResponse;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        final response = await ApiService().getAttendanceSessionReport(sessionId);
+        final response = await ApiService().getAttendanceSessionReport(
+          sessionId,
+        );
         lastResponse = response;
         if (response != null) {
           return response;
@@ -240,12 +353,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
     }
-    return _listValue(response, ['students', 'records', 'attendance', 'items'])
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
+    return _listValue(response, [
+      'students',
+      'records',
+      'attendance',
+      'items',
+    ]).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
   }
-
 
   List<Map<String, dynamic>> _normalizeSessions(List<dynamic> sessions) {
     final normalized = <Map<String, dynamic>>[];
@@ -278,7 +392,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = ResponsiveLayout.isDesktop(MediaQuery.of(context).size.width);
+    final isDesktop = ResponsiveLayout.isDesktop(
+      MediaQuery.of(context).size.width,
+    );
     final padding = EdgeInsets.all(isDesktop ? 24 : 16);
 
     return SingleChildScrollView(
@@ -288,17 +404,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Text(
             'Attendance Report',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
           AppSpacing.gap8,
           Text(
             _reportSubtitle,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondaryFor(context),
+            ),
           ),
           AppSpacing.gap20,
           _ReportTabs(
@@ -307,10 +422,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           AppSpacing.gap16,
           if (_loading)
-            const Center(child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
           else ...[
             if (_tabIndex == 0) _buildThisSessionTab(context),
             if (_tabIndex == 1) _buildClassHistoryTab(context),
@@ -327,9 +444,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           'This Session',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         AppSpacing.gap12,
         Row(
@@ -367,18 +484,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 'Student Breakdown',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               AppSpacing.gap12,
               if (_breakdown.isEmpty)
                 Text(
                   'No student breakdown available for this session.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondaryFor(context),
+                  ),
                 )
               else
                 ListView.separated(
@@ -391,15 +507,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
-                        backgroundColor: student.color.withOpacity(0.14),
+                        backgroundColor: student.color.withValues(alpha: 0.14),
                         child: Text(student.initials),
                       ),
                       title: Text(student.name),
-                      subtitle: student.subtitle.isEmpty ? null : Text(student.subtitle),
+                      subtitle: student.subtitle.isEmpty
+                          ? null
+                          : Text(student.subtitle),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _StatusPill(label: student.status, color: student.color),
+                          _StatusPill(
+                            label: student.status,
+                            color: student.color,
+                          ),
                           const SizedBox(width: 8),
                           Icon(
                             student.present ? Icons.check_circle : Icons.cancel,
@@ -425,10 +546,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return AppCard(
         child: Text(
           'No class history available right now.',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.textSecondaryFor(context),
+          ),
         ),
       );
     }
@@ -448,9 +568,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           'Previous Sessions',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
-              ),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
         ),
         AppSpacing.gap12,
         ListView.separated(
@@ -473,18 +593,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             Text(
                               item.dateLabel,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             if (item.timeLabel.isNotEmpty) ...[
                               const SizedBox(height: 4),
                               Text(
                                 item.timeLabel,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppTheme.textSecondaryFor(context),
+                                    ),
                               ),
                             ],
                           ],
@@ -515,17 +634,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       minHeight: 7,
                       value: (item.percentage / 100).clamp(0.0, 1.0),
                       backgroundColor: AppTheme.surfaceAltFor(context),
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(AppTheme.brandGreen),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppTheme.brandGreen,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '${item.percentage.toStringAsFixed(0)}% attendance',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSecondaryFor(context),
+                    ),
                   ),
                 ],
               ),
@@ -537,7 +656,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildByStudentTab(BuildContext context) {
-    final presentCount = _breakdown.where((student) => student.status.toUpperCase() == 'PRESENT').length;
+    final presentCount = _breakdown
+        .where((student) => student.status.toUpperCase() == 'PRESENT')
+        .length;
     final absentCount = _breakdown.length - presentCount;
 
     return Column(
@@ -550,7 +671,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Present',
                 value: presentCount.toString(),
                 color: AppTheme.brandGreen,
-                backgroundColor: AppTheme.brandGreen.withOpacity(0.14),
+                backgroundColor: AppTheme.brandGreen.withValues(alpha: 0.14),
               ),
             ),
             const SizedBox(width: 12),
@@ -559,7 +680,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Absent',
                 value: absentCount.toString(),
                 color: AppTheme.danger,
-                backgroundColor: AppTheme.danger.withOpacity(0.14),
+                backgroundColor: AppTheme.danger.withValues(alpha: 0.14),
               ),
             ),
           ],
@@ -571,10 +692,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 'No student attendance data available for this session.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondaryFor(context),
+                ),
               ),
             ),
           )
@@ -587,19 +707,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final student = _breakdown[index];
               final expanded = _expandedStudentId == student.id;
               final statusIsPresent = student.status.toUpperCase() == 'PRESENT';
-              final engagementLabel = student.engagement.isEmpty ? 'N/A' : student.engagement;
+              final engagementLabel = student.engagement.isEmpty
+                  ? 'N/A'
+                  : student.engagement;
               final engagementColor = engagementLabel.toUpperCase() == 'ENGAGED'
                   ? AppTheme.brandGreen
                   : engagementLabel.toUpperCase() == 'DISTRACTED'
-                      ? AppTheme.accentOrange
-                      : engagementLabel.toUpperCase() == 'SLEEPING'
-                          ? AppTheme.danger
-                          : AppTheme.textSecondary;
+                  ? AppTheme.accentOrange
+                  : engagementLabel.toUpperCase() == 'SLEEPING'
+                  ? AppTheme.danger
+                  : AppTheme.textSecondary;
 
-              final totalBehavior = student.engagedCount + student.distractedCount + student.sleepingCount + student.phoneCount;
-              final engagedPercent = totalBehavior > 0 ? student.engagedCount / totalBehavior : 0.0;
-              final distractedPercent = totalBehavior > 0 ? student.distractedCount / totalBehavior : 0.0;
-              final sleepingPercent = totalBehavior > 0 ? student.sleepingCount / totalBehavior : 0.0;
+              final totalBehavior =
+                  student.engagedCount +
+                  student.distractedCount +
+                  student.sleepingCount +
+                  student.phoneCount;
+              final engagedPercent = totalBehavior > 0
+                  ? student.engagedCount / totalBehavior
+                  : 0.0;
+              final distractedPercent = totalBehavior > 0
+                  ? student.distractedCount / totalBehavior
+                  : 0.0;
+              final sleepingPercent = totalBehavior > 0
+                  ? student.sleepingCount / totalBehavior
+                  : 0.0;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -634,11 +766,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      student.subtitle.isNotEmpty ? student.subtitle : 'Student code unavailable',
+                                      student.subtitle.isNotEmpty
+                                          ? student.subtitle
+                                          : 'Student code unavailable',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
-                                          ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                                          ?.copyWith(
+                                            color: AppTheme.textSecondaryFor(
+                                              context,
+                                            ),
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -647,11 +785,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 children: [
                                   _StatusPill(
                                     label: student.status.toUpperCase(),
-                                    color: statusIsPresent ? AppTheme.brandGreen : AppTheme.danger,
+                                    color: statusIsPresent
+                                        ? AppTheme.brandGreen
+                                        : AppTheme.danger,
                                   ),
                                   const SizedBox(width: 8),
                                   Icon(
-                                    expanded ? Icons.expand_less : Icons.expand_more,
+                                    expanded
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
                                     size: 20,
                                     color: AppTheme.textSecondaryFor(context),
                                   ),
@@ -668,10 +810,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             AppSpacing.gap12,
                             Text(
                               'Confidence: ${(student.confidence * 100).toStringAsFixed(0)}%',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: AppTheme.textSecondaryFor(context),
+                                  ),
                             ),
                           ],
                           AppSpacing.gap16,
@@ -700,9 +842,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             AppSpacing.gap16,
                             Text(
                               'Engagement Breakdown',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             AppSpacing.gap12,
@@ -747,22 +887,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ['Absent', _thisSessionAbsent.toString()],
       [],
       ['Session', 'Date', 'Time', 'Present', 'Absent', 'Attendance %'],
-      ..._historyCards.map((item) => [
-            item.title,
-            item.dateLabel,
-            item.timeLabel,
-            item.present.toString(),
-            item.absent.toString(),
-            item.percentage.toStringAsFixed(1),
-          ]),
+      ..._historyCards.map(
+        (item) => [
+          item.title,
+          item.dateLabel,
+          item.timeLabel,
+          item.present.toString(),
+          item.absent.toString(),
+          item.percentage.toStringAsFixed(1),
+        ],
+      ),
       [],
       ['Student', 'Identifier', 'Status', 'Present'],
-      ..._breakdown.map((student) => [
-            student.name,
-            student.subtitle,
-            student.status,
-            student.present ? 'Yes' : 'No',
-          ]),
+      ..._breakdown.map(
+        (student) => [
+          student.name,
+          student.subtitle,
+          student.status,
+          student.present ? 'Yes' : 'No',
+        ],
+      ),
     ];
     await _shareCsv(
       fileName: '${_safeFileName(_selectedClassName)}_class_report.csv',
@@ -789,52 +933,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not export CSV: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not export CSV: $error')));
     }
   }
 
   _ReportStudent _reportStudentFromDynamic(dynamic item) {
-    final status = _stringValue(
-      item,
-      ['final_status', 'status', 'attendance_status', 'remark'],
-      'ABSENT',
-    ).toUpperCase();
+    final status = _stringValue(item, [
+      'final_status',
+      'status',
+      'attendance_status',
+      'remark',
+    ], 'ABSENT').toUpperCase();
     final isPresent = status == 'PRESENT';
-    final engagement = _stringValue(
-      item,
-      ['final_engagement', 'engagement', 'engaged_status'],
-      '',
-    ).toUpperCase();
+    final engagement = _stringValue(item, [
+      'final_engagement',
+      'engagement',
+      'engaged_status',
+    ], '').toUpperCase();
 
     return _ReportStudent(
       id: _stringValue(item, ['student_id', 'id']),
-      name: _stringValue(
-        item,
-        ['full_name', 'student_full_name', 'student_name', 'name'],
-        'Student',
-      ),
-      subtitle: _stringValue(item, ['student_code', 'code', 'roll_no', 'registration_no', 'student_id', 'id']),
+      name: _stringValue(item, [
+        'full_name',
+        'student_full_name',
+        'student_name',
+        'name',
+      ], 'Student'),
+      subtitle: _stringValue(item, [
+        'student_code',
+        'code',
+        'roll_no',
+        'registration_no',
+        'student_id',
+        'id',
+      ]),
       status: status,
       present: isPresent,
       color: _statusColor(status, isPresent),
-      confidence: _doubleValue(item, ['confidence', 'confidence_score'], fallback: 0),
+      confidence: _doubleValue(item, [
+        'confidence',
+        'confidence_score',
+      ], fallback: 0),
       engagement: engagement,
       engagedCount: _intValue(item, ['engaged_count', 'engaged'], fallback: 0),
-      distractedCount: _intValue(item, ['distracted_count', 'distracted'], fallback: 0),
-      sleepingCount: _intValue(item, ['sleeping_count', 'sleeping'], fallback: 0),
+      distractedCount: _intValue(item, [
+        'distracted_count',
+        'distracted',
+      ], fallback: 0),
+      sleepingCount: _intValue(item, [
+        'sleeping_count',
+        'sleeping',
+      ], fallback: 0),
       phoneCount: _intValue(item, ['phone_count', 'phone'], fallback: 0),
     );
   }
 
+  _ReportStudent _reportStudentFromClassStudent(Map<String, dynamic> item) {
+    return _ReportStudent(
+      id: _stringValue(item, ['student_id', 'id']),
+      name: _stringValue(item, [
+        'full_name',
+        'student_full_name',
+        'student_name',
+        'name',
+      ], 'Student'),
+      subtitle: _stringValue(item, [
+        'student_code',
+        'code',
+        'roll_no',
+        'registration_no',
+        'student_id',
+        'id',
+      ]),
+      status: 'ABSENT',
+      present: false,
+      color: AppTheme.accentOrange,
+      confidence: 0,
+      engagement: 'N/A',
+      engagedCount: 0,
+      distractedCount: 0,
+      sleepingCount: 0,
+      phoneCount: 0,
+    );
+  }
 }
 
 class _ReportTabs extends StatelessWidget {
-  const _ReportTabs({
-    required this.currentIndex,
-    required this.onChanged,
-  });
+  const _ReportTabs({required this.currentIndex, required this.onChanged});
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
@@ -844,9 +1031,7 @@ class _ReportTabs extends StatelessWidget {
     const labels = ['This Session', 'Class History', 'By Student'];
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppTheme.borderFor(context)),
-        ),
+        border: Border(bottom: BorderSide(color: AppTheme.borderFor(context))),
       ),
       child: Row(
         children: List.generate(labels.length, (index) {
@@ -859,7 +1044,9 @@ class _ReportTabs extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: selected ? AppTheme.brandGreen : Colors.transparent,
+                      color: selected
+                          ? AppTheme.brandGreen
+                          : Colors.transparent,
                       width: 2,
                     ),
                   ),
@@ -868,11 +1055,11 @@ class _ReportTabs extends StatelessWidget {
                   labels[index],
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: selected
-                            ? AppTheme.textPrimaryFor(context)
-                            : AppTheme.textSecondaryFor(context),
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      ),
+                    color: selected
+                        ? AppTheme.textPrimaryFor(context)
+                        : AppTheme.textSecondaryFor(context),
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -902,18 +1089,17 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppTheme.textSecondaryFor(context),
+            ),
           ),
           AppSpacing.gap8,
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -940,16 +1126,15 @@ class _CountPair extends StatelessWidget {
         Text(
           value,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w800,
-              ),
+            color: color,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         Text(
           label,
-          style: Theme.of(context)
-              .textTheme
-              .labelSmall
-              ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppTheme.textSecondaryFor(context),
+          ),
         ),
       ],
     );
@@ -957,10 +1142,7 @@ class _CountPair extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.color,
-  });
+  const _StatusPill({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -970,15 +1152,15 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -1011,17 +1193,16 @@ class _SummaryStatCard extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: color,
-                ),
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             title,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.textSecondaryFor(context),
+            ),
           ),
         ],
       ),
@@ -1055,17 +1236,16 @@ class _AttendanceStatChip extends StatelessWidget {
             Text(
               value,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondaryFor(context),
+              ),
             ),
           ],
         ),
@@ -1091,16 +1271,15 @@ Widget _buildPercentageRow(
               children: [
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   '${(percent * 100).toStringAsFixed(0)}%',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AppTheme.textSecondaryFor(context)),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondaryFor(context),
+                  ),
                 ),
               ],
             ),
@@ -1173,13 +1352,15 @@ class _ReportStudent {
   String get initials => _initials(name);
 }
 
-
 String _joinNonEmpty(List<String> values, {String separator = ' • '}) {
   final filtered = values.where((value) => value.trim().isNotEmpty).toList();
   return filtered.join(separator);
 }
 
-List<Map<String, dynamic>> _extractResponseList(dynamic response, List<String> keys) {
+List<Map<String, dynamic>> _extractResponseList(
+  dynamic response,
+  List<String> keys,
+) {
   if (response is List) {
     return response
         .whereType<Map>()
