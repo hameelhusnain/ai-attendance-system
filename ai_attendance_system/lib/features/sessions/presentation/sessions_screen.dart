@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
@@ -28,6 +29,7 @@ class _SessionsScreenState extends State<SessionsScreen>
   bool _studentsExpanded = false;
   int _markedCount = 0;
   String? _currentSessionId;
+  Timer? _attendancePoller;
   late final AnimationController _blobController;
   late Future<List<Map<String, dynamic>>> _studentsFuture;
 
@@ -52,6 +54,7 @@ class _SessionsScreenState extends State<SessionsScreen>
 
   @override
   void dispose() {
+    _stopAttendancePolling();
     _blobController.dispose();
     super.dispose();
   }
@@ -75,6 +78,7 @@ class _SessionsScreenState extends State<SessionsScreen>
           _currentSessionId = sessionId;
           _markedCount = _extractMarkedCount(activeSession);
         });
+        _startAttendancePolling(sessionId);
         await SessionStore.saveCurrentSession(
           sessionId: sessionId,
           session: activeSession,
@@ -85,6 +89,7 @@ class _SessionsScreenState extends State<SessionsScreen>
           _currentSessionId = null;
           _markedCount = 0;
         });
+        _stopAttendancePolling();
         await SessionStore.clearCurrentSession();
       }
     } finally {
@@ -167,6 +172,7 @@ class _SessionsScreenState extends State<SessionsScreen>
           resolvedSession ?? SessionStore.currentSession,
         );
       });
+      _startAttendancePolling(sessionId);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Session started successfully.')),
@@ -219,6 +225,7 @@ class _SessionsScreenState extends State<SessionsScreen>
         throw StateError('No active session was found to stop.');
       }
 
+      _stopAttendancePolling();
       await ApiService().endSession(sessionId);
       final ended = await _waitForSessionEnd(sessionId);
 
@@ -304,6 +311,52 @@ class _SessionsScreenState extends State<SessionsScreen>
       await ApiService().submitAttendance(sessionId, <String, dynamic>{});
     } catch (_) {
       // Optional on some backends; do not block stop confirmation on this call.
+    }
+  }
+
+  void _startAttendancePolling(String sessionId) {
+    _attendancePoller?.cancel();
+    _pollAttendanceCount(sessionId);
+    _attendancePoller = Timer.periodic(const Duration(seconds: 3), (_) {
+      _pollAttendanceCount(sessionId);
+    });
+  }
+
+  void _stopAttendancePolling() {
+    _attendancePoller?.cancel();
+    _attendancePoller = null;
+  }
+
+  Future<void> _pollAttendanceCount(String sessionId) async {
+    if (!mounted || sessionId.isEmpty) {
+      return;
+    }
+    if (_currentSessionId != sessionId || !_running) {
+      _stopAttendancePolling();
+      return;
+    }
+
+    try {
+      final report = await ApiService().getAttendanceSessionReport(sessionId);
+      final reportCount = _extractPresentCountFromReport(report);
+      if (reportCount != null) {
+        if (mounted && reportCount != _markedCount) {
+          setState(() => _markedCount = reportCount);
+        }
+        return;
+      }
+    } catch (_) {
+      // Fall back to session polling below.
+    }
+
+    try {
+      final session = await ApiService().getSessionById(sessionId);
+      final count = _extractMarkedCount(_extractSessionMap(session));
+      if (mounted && count != _markedCount) {
+        setState(() => _markedCount = count);
+      }
+    } catch (_) {
+      // Ignore transient polling failures.
     }
   }
 
@@ -1326,6 +1379,56 @@ int _extractMarkedCount(Map<String, dynamic>? session) {
         ),
       ) ??
       0;
+}
+
+int? _extractPresentCountFromReport(dynamic response) {
+  if (response is List) {
+    final items = response.whereType<Map>().map(
+      (item) => Map<String, dynamic>.from(item),
+    );
+    if (items.isEmpty) {
+      return null;
+    }
+    var presentCount = 0;
+    for (final item in items) {
+      final status = _nestedRead(
+        item,
+        const ['final_status', 'status', 'attendance_status', 'remark'],
+        nestedKeys: const ['student', 'attendance', 'data'],
+      ).toLowerCase();
+      if (status.isEmpty || status.contains('present')) {
+        presentCount++;
+      }
+    }
+    return presentCount;
+  }
+
+  if (response is Map) {
+    final report =
+        _extractSessionMap(response) ?? Map<String, dynamic>.from(response);
+    final directCount = _nestedRead(
+      report,
+      const ['present', 'present_count', 'marked', 'total_present'],
+      nestedKeys: const ['report', 'attendance', 'data'],
+    );
+    final parsed = int.tryParse(directCount);
+    if (parsed != null) {
+      return parsed;
+    }
+
+    final records = _extractList(report, const [
+      'students',
+      'records',
+      'attendance',
+      'items',
+      'data',
+    ]);
+    if (records.isNotEmpty) {
+      return _extractPresentCountFromReport(records);
+    }
+  }
+
+  return null;
 }
 
 bool _isRunningStatus(String status) {

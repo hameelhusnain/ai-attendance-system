@@ -20,18 +20,24 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _loading = true;
+  bool _filtersLoading = true;
+  bool _historyLoading = true;
+  bool _breakdownLoading = true;
   int _tabIndex = 0;
   String? _expandedStudentId;
   String? _expandedHistorySessionId;
+  String? _preferredReportSessionId;
+  DateTimeRange? _selectedDateRange;
+  Map<String, dynamic>? _selectedReportClass;
 
+  List<Map<String, dynamic>> _availableClasses = const [];
   List<_SessionHistoryView> _historyCards = const [];
   List<_ReportStudent> _breakdown = const [];
 
   @override
   void initState() {
     super.initState();
-    _loadReportData();
+    _initializeReport();
   }
 
   @override
@@ -39,8 +45,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _initializeReport() async {
+    _preferredReportSessionId = await SessionStore.consumeReportSessionId();
+    _selectedReportClass = SessionStore.selectedClass == null
+        ? null
+        : Map<String, dynamic>.from(SessionStore.selectedClass!);
+    await _loadAvailableClasses();
+    await _loadReportData();
+  }
+
   Map<String, dynamic> get _selectedClass =>
-      SessionStore.selectedClass ?? const {};
+      _selectedReportClass ?? SessionStore.selectedClass ?? const {};
 
   String get _selectedClassId =>
       _stringValue(_selectedClass, ['id', 'class_id', 'classId']);
@@ -89,7 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool get _canExportReport =>
       _historyCards.isNotEmpty || _breakdown.isNotEmpty;
 
-  Map<String, dynamic> _reportQueryParameters() {
+  Map<String, dynamic> _classQueryParameters() {
     final selectedClass = _selectedClass;
     final query = <String, dynamic>{};
     final classId = _stringValue(selectedClass, ['id', 'class_id', 'classId']);
@@ -118,11 +133,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return query;
   }
 
+  Map<String, dynamic> _reportQueryParameters() {
+    final query = <String, dynamic>{..._classQueryParameters()};
+    final range = _selectedDateRange;
+    if (range == null) {
+      return query;
+    }
+
+    final from = _formatDate(range.start);
+    final to = _formatDate(range.end);
+    query['date_from'] = from;
+    query['from_date'] = from;
+    query['start_date'] = from;
+    query['date_to'] = to;
+    query['to_date'] = to;
+    query['end_date'] = to;
+    return query;
+  }
+
+  Future<void> _loadAvailableClasses() async {
+    final response = await _safeCall(() => ApiService().getClasses());
+    final classes = _extractResponseList(response, const [
+      'classes',
+      'items',
+      'data',
+    ]);
+    final selectedTeacherId = _stringValue(SessionStore.selectedClass, [
+      'teacher_id',
+      'teacherId',
+      'tutor_id',
+    ]);
+    final filtered = classes.where((item) {
+      if (selectedTeacherId.isEmpty) {
+        return true;
+      }
+      final classTeacherId = _stringValue(item, [
+        'teacher_id',
+        'teacherId',
+        'tutor_id',
+      ]);
+      return classTeacherId.isEmpty || classTeacherId == selectedTeacherId;
+    }).toList();
+
+    if (!mounted) return;
+    setState(() {
+      _availableClasses = filtered.isNotEmpty ? filtered : classes;
+      _filtersLoading = false;
+    });
+  }
+
   Future<void> _loadReportData() async {
+    if (mounted) {
+      setState(() {
+        _historyLoading = true;
+        _breakdownLoading = true;
+        _expandedHistorySessionId = null;
+        _expandedStudentId = null;
+      });
+    }
+
     final api = ApiService();
     dynamic sessionsResponse;
     final query = _reportQueryParameters();
-    final reportSessionId = await SessionStore.consumeReportSessionId();
     final classStudents = await _loadClassStudents();
 
     try {
@@ -138,10 +210,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final sessions = _normalizeSessions(sessionsRaw);
     final resolvedSessions = sessions.isNotEmpty ? sessions : sessionsRaw;
     final activeSessionId = SessionStore.currentSessionId;
+    final activeClassId = _stringValue(SessionStore.selectedClass, [
+      'id',
+      'class_id',
+      'classId',
+    ]);
     final selectedReportSessionId =
-        reportSessionId != null && reportSessionId.isNotEmpty
-        ? reportSessionId
-        : activeSessionId != null && activeSessionId.isNotEmpty
+        _preferredReportSessionId != null &&
+            _preferredReportSessionId!.isNotEmpty
+        ? _preferredReportSessionId
+        : activeSessionId != null &&
+              activeSessionId.isNotEmpty &&
+              activeClassId.isNotEmpty &&
+              activeClassId == _selectedClassId
         ? activeSessionId
         : resolvedSessions.isNotEmpty
         ? _stringValue(resolvedSessions.first, ['id', 'session_id'])
@@ -152,6 +233,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       fallbackStudentCount: classStudents.length,
       prioritizedSessionId: selectedReportSessionId,
     );
+
+    if (!mounted) return;
+    setState(() {
+      _historyCards = historyCards;
+      _historyLoading = false;
+      _preferredReportSessionId = null;
+    });
+
     final breakdown = await _loadBreakdown(
       selectedReportSessionId,
       classStudents,
@@ -159,9 +248,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (!mounted) return;
     setState(() {
-      _historyCards = historyCards;
       _breakdown = breakdown;
-      _loading = false;
+      _breakdownLoading = false;
     });
   }
 
@@ -199,6 +287,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     for (final session in orderedSessions.take(6)) {
       final sessionId = _stringValue(session, ['id', 'session_id']);
       Map<String, dynamic> report = const {};
+      final students = await _loadBreakdown(sessionId, classStudents);
+      final presentFromStudents = students
+          .where((student) => student.present)
+          .length;
+      final totalFromStudents = students.length;
 
       if (sessionId.isNotEmpty) {
         final response = await _fetchAttendanceSessionReportWithRetry(
@@ -211,28 +304,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
-      final present = _intValue(report, [
-        'present',
-        'present_count',
-      ], fallback: _intValue(session, ['present', 'marked'], fallback: 0));
+      final present = _intValue(
+        report,
+        ['present', 'present_count'],
+        fallback: totalFromStudents > 0
+            ? presentFromStudents
+            : _intValue(session, ['present', 'marked'], fallback: 0),
+      );
       final total = _intValue(
         report,
         ['total', 'total_students'],
-        fallback: _intValue(session, [
-          'total',
-          'student_count',
-          'total_students',
-        ], fallback: fallbackStudentCount),
+        fallback: totalFromStudents > 0
+            ? totalFromStudents
+            : _intValue(session, [
+                'total',
+                'student_count',
+                'total_students',
+              ], fallback: fallbackStudentCount),
       );
-      final absent = _intValue(report, [
-        'absent',
-        'absent_count',
-      ], fallback: total > 0 ? max(total - present, 0) : fallbackStudentCount);
+      final absent = _intValue(
+        report,
+        ['absent', 'absent_count'],
+        fallback: total > 0
+            ? max(total - present, 0)
+            : max(totalFromStudents - presentFromStudents, 0),
+      );
       final percentage = _doubleValue(report, [
         'attendance_rate',
         'percentage',
       ], fallback: total > 0 ? (present / total) * 100 : 0);
-      final students = await _loadBreakdown(sessionId, classStudents);
 
       cards.add(
         _SessionHistoryView(
@@ -285,7 +385,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<List<Map<String, dynamic>>> _loadClassStudents() async {
     final api = ApiService();
-    final query = _reportQueryParameters();
+    final query = _classQueryParameters();
     dynamic response;
 
     try {
@@ -374,9 +474,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     for (final session in sessions) {
       if (session is! Map) continue;
       final map = Map<String, dynamic>.from(session);
-      if (_matchesSelectedClass(map)) normalized.add(map);
+      if (_matchesSelectedClass(map) && _isCompletedSession(map)) {
+        normalized.add(map);
+      }
     }
     return normalized;
+  }
+
+  bool _isCompletedSession(Map<String, dynamic> item) {
+    final status = _stringValue(item, [
+      'status',
+      'session_status',
+      'state',
+    ]).toLowerCase();
+    if (status.contains('active') ||
+        status.contains('running') ||
+        status.contains('open') ||
+        status.contains('start') ||
+        status.contains('progress')) {
+      return false;
+    }
+    if (status.contains('end') ||
+        status.contains('closed') ||
+        status.contains('finish') ||
+        status.contains('complete') ||
+        status.contains('stop')) {
+      return true;
+    }
+
+    final isClosed = _stringValue(item, ['is_closed', 'closed']).toLowerCase();
+    if (isClosed == 'true' || isClosed == '1' || isClosed == 'yes') {
+      return true;
+    }
+
+    final isActive = _stringValue(item, ['is_active', 'active']).toLowerCase();
+    if (isActive == 'true' || isActive == '1' || isActive == 'yes') {
+      return false;
+    }
+
+    return true;
   }
 
   bool _matchesSelectedClass(Map<String, dynamic> item) {
@@ -423,24 +559,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: AppTheme.textSecondaryFor(context),
             ),
           ),
+          AppSpacing.gap16,
+          _buildFilters(context),
           AppSpacing.gap20,
           _ReportTabs(
             currentIndex: _tabIndex,
             onChanged: (value) => setState(() => _tabIndex = value),
           ),
           AppSpacing.gap16,
-          if (_loading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else ...[
-            if (_tabIndex == 0) _buildThisSessionTab(context),
-            if (_tabIndex == 1) _buildClassHistoryTab(context),
-            if (_tabIndex == 2) _buildByStudentTab(context),
-          ],
+          if (_tabIndex == 0) _buildThisSessionTab(context),
+          if (_tabIndex == 1) _buildClassHistoryTab(context),
+          if (_tabIndex == 2) _buildByStudentTab(context),
         ],
       ),
     );
@@ -497,7 +626,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               AppSpacing.gap12,
-              if (_breakdown.isEmpty)
+              if (_breakdownLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else if (_breakdown.isEmpty)
                 Text(
                   'No student breakdown available for this session.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -550,6 +686,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildClassHistoryTab(BuildContext context) {
+    if (_historyLoading && _historyCards.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
     if (_historyCards.isEmpty) {
       return AppCard(
         child: Text(
@@ -574,7 +719,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         AppSpacing.gap12,
         Text(
-          'Previous Sessions',
+          'Previous Sessions (${_historyCards.length})',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
@@ -722,10 +867,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildByStudentTab(BuildContext context) {
-    final presentCount = _breakdown
-        .where((student) => student.status.toUpperCase() == 'PRESENT')
-        .length;
-    final absentCount = _breakdown.length - presentCount;
+    final presentCount = _breakdownLoading
+        ? _thisSessionPresent
+        : _breakdown
+              .where((student) => student.status.toUpperCase() == 'PRESENT')
+              .length;
+    final absentCount = _breakdownLoading
+        ? _thisSessionAbsent
+        : _breakdown.length - presentCount;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,7 +910,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         AppSpacing.gap16,
-        if (_breakdown.isEmpty)
+        if (_breakdownLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_breakdown.isEmpty)
           AppCard(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1145,6 +1301,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     return (count / total) * 100;
   }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final initialRange =
+        _selectedDateRange ??
+        DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: initialRange,
+    );
+    if (picked == null) {
+      return;
+    }
+    setState(() => _selectedDateRange = picked);
+    await _loadReportData();
+  }
+
+  Future<void> _clearFilters() async {
+    setState(() {
+      _selectedDateRange = null;
+      _selectedReportClass = SessionStore.selectedClass == null
+          ? null
+          : Map<String, dynamic>.from(SessionStore.selectedClass!);
+    });
+    await _loadReportData();
+  }
+
+  Widget _buildFilters(BuildContext context) {
+    final range = _selectedDateRange;
+    final rangeLabel = range == null
+        ? 'Any date'
+        : '${_formatDate(range.start)} - ${_formatDate(range.end)}';
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Filters',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          AppSpacing.gap12,
+          if (_filtersLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else ...[
+            DropdownButtonFormField<String>(
+              initialValue: _selectedClassId.isEmpty ? null : _selectedClassId,
+              decoration: const InputDecoration(
+                labelText: 'Subject / Class',
+                prefixIcon: Icon(Icons.class_outlined),
+              ),
+              items: _availableClasses.map((item) {
+                final id = _stringValue(item, ['id', 'class_id', 'classId']);
+                final label = _classFilterLabel(item);
+                return DropdownMenuItem<String>(
+                  value: id.isEmpty ? label : id,
+                  child: Text(label, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (value) async {
+                if (value == null) return;
+                final match = _availableClasses.firstWhere((item) {
+                  final id = _stringValue(item, ['id', 'class_id', 'classId']);
+                  final label = _classFilterLabel(item);
+                  return (id.isEmpty ? label : id) == value;
+                }, orElse: () => _selectedClass);
+                setState(() {
+                  _selectedReportClass = Map<String, dynamic>.from(match);
+                });
+                await _loadReportData();
+              },
+            ),
+            AppSpacing.gap12,
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickDateRange,
+                    icon: const Icon(Icons.date_range_outlined),
+                    label: Text(rangeLabel, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed:
+                      (_selectedDateRange == null &&
+                          _selectedClassId ==
+                              _stringValue(SessionStore.selectedClass, [
+                                'id',
+                                'class_id',
+                                'classId',
+                              ]))
+                      ? null
+                      : _clearFilters,
+                  child: const Text('Reset'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _ReportTabs extends StatelessWidget {
@@ -1245,9 +1511,6 @@ class _HistoryStudentRow extends StatelessWidget {
     final iconColor = student.present
         ? AppTheme.brandGreen
         : AppTheme.accentOrange;
-    final engagementLabel = student.present
-        ? (student.engagement.isEmpty ? 'N/A' : student.engagement)
-        : '—';
 
     return Row(
       children: [
@@ -1269,19 +1532,6 @@ class _HistoryStudentRow extends StatelessWidget {
             student.subtitle.isEmpty ? '-' : student.subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppTheme.textSecondaryFor(context),
-            ),
-            textAlign: TextAlign.right,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 96,
-          child: Text(
-            engagementLabel,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSecondaryFor(context),
-              fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.right,
             overflow: TextOverflow.ellipsis,
@@ -1508,6 +1758,23 @@ class _ReportStudent {
 String _joinNonEmpty(List<String> values, {String separator = ' • '}) {
   final filtered = values.where((value) => value.trim().isNotEmpty).toList();
   return filtered.join(separator);
+}
+
+String _formatDate(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
+}
+
+String _classFilterLabel(Map<String, dynamic> item) {
+  final name = _stringValue(item, ['name', 'class_name', 'title'], 'Class');
+  final section = _joinNonEmpty([
+    _stringValue(item, ['code', 'section']),
+    _stringValue(item, ['group']),
+    _stringValue(item, ['semester']),
+    _stringValue(item, ['batch']),
+  ], separator: ' • ');
+  return section.isEmpty ? name : '$name • $section';
 }
 
 List<Map<String, dynamic>> _extractResponseList(
