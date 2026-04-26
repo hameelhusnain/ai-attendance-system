@@ -8,5 +8,6 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   SessionStore.apiBaseUrl = prefs.getString('api_base_url');
   SessionStore.token = prefs.getString('auth_token');
+  await SessionStore.loadPersistedSession();
   runApp(const AiAttendanceApp());
 }
