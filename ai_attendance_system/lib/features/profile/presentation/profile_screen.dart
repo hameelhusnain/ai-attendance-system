@@ -23,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   int _tabIndex = 0;
   String? _expandedStudentId;
+  String? _expandedHistorySessionId;
 
   List<_SessionHistoryView> _historyCards = const [];
   List<_ReportStudent> _breakdown = const [];
@@ -147,6 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : null;
     final historyCards = await _buildHistoryCards(
       resolvedSessions,
+      classStudents: classStudents,
       fallbackStudentCount: classStudents.length,
       prioritizedSessionId: selectedReportSessionId,
     );
@@ -173,6 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<List<_SessionHistoryView>> _buildHistoryCards(
     List<Map<String, dynamic>> sessions, {
+    required List<Map<String, dynamic>> classStudents,
     required int fallbackStudentCount,
     String? prioritizedSessionId,
   }) async {
@@ -229,6 +232,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'attendance_rate',
         'percentage',
       ], fallback: total > 0 ? (present / total) * 100 : 0);
+      final students = await _loadBreakdown(sessionId, classStudents);
 
       cards.add(
         _SessionHistoryView(
@@ -250,6 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           present: present,
           absent: absent,
           percentage: percentage,
+          students: students,
         ),
       );
     }
@@ -583,73 +588,131 @@ class _ProfileScreenState extends State<ProfileScreen> {
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = _historyCards[index];
-            return AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            final expanded = _expandedHistorySessionId == item.sessionId;
+            return InkWell(
+              borderRadius: BorderRadius.circular(24),
+              onTap: () {
+                setState(() {
+                  _expandedHistorySessionId = expanded ? null : item.sessionId;
+                });
+              },
+              child: AppCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.dateLabel,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            if (item.timeLabel.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                item.timeLabel,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_today_rounded,
+                                      size: 16,
                                       color: AppTheme.textSecondaryFor(context),
                                     ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Row(
-                        children: [
-                          _CountPair(
-                            label: 'Present',
-                            value: item.present.toString(),
-                            color: AppTheme.brandGreen,
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        item.dateLabel,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (item.timeLabel.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    item.timeLabel,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: AppTheme.textSecondaryFor(
+                                            context,
+                                          ),
+                                        ),
+                                  ),
+                                ],
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Present: ${item.present}   Absent: ${item.absent}   •   ${item.percentage.toStringAsFixed(0)}%',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 18),
-                          _CountPair(
-                            label: 'Absent',
-                            value: item.absent.toString(),
-                            color: AppTheme.accentOrange,
+                          const SizedBox(width: 12),
+                          AnimatedRotation(
+                            turns: expanded ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 220),
+                            child: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: AppTheme.textSecondaryFor(context),
+                            ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 14),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          minHeight: 7,
+                          value: (item.percentage / 100).clamp(0.0, 1.0),
+                          backgroundColor: AppTheme.surfaceAltFor(context),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppTheme.brandGreen,
+                          ),
+                        ),
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeInOut,
+                        child: !expanded
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: item.students.isEmpty
+                                    ? Text(
+                                        'No student breakdown available for this session.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: AppTheme.textSecondaryFor(
+                                                context,
+                                              ),
+                                            ),
+                                      )
+                                    : Column(
+                                        children: [
+                                          for (
+                                            var i = 0;
+                                            i < item.students.length;
+                                            i++
+                                          ) ...[
+                                            _HistoryStudentRow(
+                                              student: item.students[i],
+                                            ),
+                                            if (i != item.students.length - 1)
+                                              const Divider(height: 18),
+                                          ],
+                                        ],
+                                      ),
+                              ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      minHeight: 7,
-                      value: (item.percentage / 100).clamp(0.0, 1.0),
-                      backgroundColor: AppTheme.surfaceAltFor(context),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppTheme.brandGreen,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${item.percentage.toStringAsFixed(0)}% attendance',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textSecondaryFor(context),
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -1171,33 +1234,57 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _CountPair extends StatelessWidget {
-  const _CountPair({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+class _HistoryStudentRow extends StatelessWidget {
+  const _HistoryStudentRow({required this.student});
 
-  final String label;
-  final String value;
-  final Color color;
+  final _ReportStudent student;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    final icon = student.present ? Icons.check_box : Icons.close;
+    final iconColor = student.present
+        ? AppTheme.brandGreen
+        : AppTheme.accentOrange;
+    final engagementLabel = student.present
+        ? (student.engagement.isEmpty ? 'N/A' : student.engagement)
+        : '—';
+
+    return Row(
       children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w800,
+        Icon(icon, color: iconColor, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            student.name,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppTheme.textSecondaryFor(context),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 56,
+          child: Text(
+            student.subtitle.isEmpty ? '-' : student.subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.textSecondaryFor(context),
+            ),
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 96,
+          child: Text(
+            engagementLabel,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.textSecondaryFor(context),
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -1373,6 +1460,7 @@ class _SessionHistoryView {
     required this.present,
     required this.absent,
     required this.percentage,
+    required this.students,
   });
 
   final String sessionId;
@@ -1382,6 +1470,7 @@ class _SessionHistoryView {
   final int present;
   final int absent;
   final double percentage;
+  final List<_ReportStudent> students;
 }
 
 class _ReportStudent {
