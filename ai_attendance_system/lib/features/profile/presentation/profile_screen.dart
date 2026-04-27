@@ -559,8 +559,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: AppTheme.textSecondaryFor(context),
             ),
           ),
-          AppSpacing.gap16,
-          _buildFilters(context),
           AppSpacing.gap20,
           _ReportTabs(
             currentIndex: _tabIndex,
@@ -709,6 +707,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildFilters(context),
+        AppSpacing.gap16,
         Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton.icon(
