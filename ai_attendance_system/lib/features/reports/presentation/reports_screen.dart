@@ -74,11 +74,44 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   List<Map<String, dynamic>> _extractReportRows(dynamic response) {
+    if (response == null) return const [];
     if (response is List) {
       return response.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
     }
     if (response is Map) {
-      return _extractList(response, const ['students', 'records', 'attendance', 'items']);
+      // Try multiple keys that the API might return
+      final listKeys = [
+        'students',
+        'records',
+        'attendance',
+        'items',
+        'data',
+        'report',
+        'results',
+        'attendance_records',
+      ];
+      for (final key in listKeys) {
+        final value = response[key];
+        if (value is List && value.isNotEmpty) {
+          return value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+        }
+      }
+      // Check nested structures
+      final nestedKeys = ['data', 'report', 'session', 'response'];
+      for (final nestedKey in nestedKeys) {
+        final nested = response[nestedKey];
+        if (nested is Map) {
+          for (final key in listKeys) {
+            final value = nested[key];
+            if (value is List && value.isNotEmpty) {
+              return value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+            }
+          }
+        }
+        if (nested is List && nested.isNotEmpty) {
+          return nested.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+        }
+      }
     }
     return const [];
   }
@@ -86,12 +119,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
   int get _presentCount {
     return _reportRows.where((row) {
       final status = _readValue(row, const ['final_status', 'status', 'attendance_status']).toLowerCase();
-      return status.contains('present');
+      // Check for various "present" indicators
+      return status.contains('present') || status.contains('absent') == false;
     }).length;
   }
 
   int get _absentCount {
-    return _reportRows.length - _presentCount;
+    return _reportRows.where((row) {
+      final status = _readValue(row, const ['final_status', 'status', 'attendance_status']).toLowerCase();
+      // Check for various "absent" indicators
+      return status.contains('absent') && !status.contains('present');
+    }).length;
   }
 
   @override

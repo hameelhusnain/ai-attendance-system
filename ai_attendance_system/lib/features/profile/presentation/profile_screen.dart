@@ -287,33 +287,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     for (final session in orderedSessions.take(6)) {
       final sessionId = _stringValue(session, ['id', 'session_id']);
       Map<String, dynamic> report = const {};
-      final students = await _loadBreakdown(sessionId, classStudents);
+      List<Map<String, dynamic>> reportRecords = [];
+
+      // First fetch the report to get attendance data
+      if (sessionId.isNotEmpty) {
+        final response = await _fetchAttendanceSessionReportWithRetry(
+          sessionId,
+        );
+        if (response != null) {
+          if (response is Map<String, dynamic>) {
+            report = response;
+          } else if (response is Map) {
+            report = Map<String, dynamic>.from(response);
+          }
+          // Extract records from the report
+          reportRecords = _extractReportItems(response);
+        }
+      }
+
+      // Use report records if available, otherwise fall back to class students
+      final students = reportRecords.isNotEmpty
+          ? reportRecords.map(_reportStudentFromDynamic).toList()
+          : classStudents.map(_reportStudentFromClassStudent).toList();
+
       final presentFromStudents = students
           .where((student) => student.present)
           .length;
       final totalFromStudents = students.length;
 
-      if (sessionId.isNotEmpty) {
-        final response = await _fetchAttendanceSessionReportWithRetry(
-          sessionId,
-        );
-        if (response is Map<String, dynamic>) {
-          report = response;
-        } else if (response is Map) {
-          report = Map<String, dynamic>.from(response);
-        }
-      }
-
+      // Try to get present/absent from report response first
       final present = _intValue(
         report,
-        ['present', 'present_count'],
+        ['present', 'present_count', 'marked'],
         fallback: totalFromStudents > 0
             ? presentFromStudents
             : _intValue(session, ['present', 'marked'], fallback: 0),
       );
       final total = _intValue(
         report,
-        ['total', 'total_students'],
+        ['total', 'total_students', 'student_count'],
         fallback: totalFromStudents > 0
             ? totalFromStudents
             : _intValue(session, [
@@ -372,9 +384,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final response = await _fetchAttendanceSessionReportWithRetry(sessionId);
-      final records = _extractReportItems(response);
-      if (records.isNotEmpty) {
-        return records.map(_reportStudentFromDynamic).toList();
+      if (response != null) {
+        final records = _extractReportItems(response);
+        if (records.isNotEmpty) {
+          return records.map(_reportStudentFromDynamic).toList();
+        }
+        // If response is a Map with present/absent counts but no student records,
+        // still return class students but mark them based on the report
+        if (response is Map && response.isNotEmpty) {
+          final presentCount = _intValue(response, ['present', 'present_count'], fallback: -1);
+          final absentCount = _intValue(response, ['absent', 'absent_count'], fallback: -1);
+          if (presentCount >= 0 || absentCount >= 0) {
+            // Report has summary data but no individual records
+            // Return class students as all present (fallback behavior)
+            return classStudents.map(_reportStudentFromClassStudent).toList();
+          }
+        }
       }
     } catch (_) {
       // ignore attendance load errors for UI fallback
@@ -455,18 +480,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   List<Map<String, dynamic>> _extractReportItems(dynamic response) {
+    if (response == null) return const [];
     if (response is List) {
       return response
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
     }
-    return _listValue(response, [
-      'students',
-      'records',
-      'attendance',
-      'items',
-    ]).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+    if (response is Map) {
+      // Try multiple keys that the API might return
+      final listKeys = [
+        'students',
+        'records',
+        'attendance',
+        'items',
+        'data',
+        'report',
+        'results',
+        'attendance_records',
+      ];
+      for (final key in listKeys) {
+        final value = response[key];
+        if (value is List && value.isNotEmpty) {
+          return value
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+      // If no list found, check nested structures
+      final nestedKeys = ['data', 'report', 'session', 'response'];
+      for (final nestedKey in nestedKeys) {
+        final nested = response[nestedKey];
+        if (nested is Map) {
+          for (final key in listKeys) {
+            final value = nested[key];
+            if (value is List && value.isNotEmpty) {
+              return value
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList();
+            }
+          }
+        }
+        if (nested is List && nested.isNotEmpty) {
+          return nested
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+    }
+    return const [];
   }
 
   List<Map<String, dynamic>> _normalizeSessions(List<dynamic> sessions) {
