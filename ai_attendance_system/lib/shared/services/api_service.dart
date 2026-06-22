@@ -36,7 +36,7 @@ class ApiService {
   }
 
   Uri _uri(String path, {Map<String, dynamic>? queryParameters}) {
-    final uri = Uri.parse('${baseUrl}$path');
+    final uri = Uri.parse('$baseUrl$path');
     if (queryParameters == null || queryParameters.isEmpty) {
       return uri;
     }
@@ -93,7 +93,7 @@ class ApiService {
   }
 
   Future<String> login(String email, String password) async {
-    final uri = Uri.parse('${baseUrl}/auth/login');
+    final uri = Uri.parse('$baseUrl/auth/login');
     final response = await _client.post(
       uri,
       headers: _headers(auth: false),
@@ -107,7 +107,7 @@ class ApiService {
 
   Future<dynamic> getMe(String token) async {
     setToken(token);
-    final uri = Uri.parse('${baseUrl}/auth/me').replace(queryParameters: {'token': token});
+    final uri = Uri.parse('$baseUrl/auth/me').replace(queryParameters: {'token': token});
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
@@ -125,7 +125,7 @@ class ApiService {
   }
 
   Future<dynamic> createStudent(Map<String, dynamic> data) async {
-    final uri = Uri.parse('${baseUrl}/students/');
+    final uri = Uri.parse('$baseUrl/students/');
     final response = await _client.post(
       uri,
       headers: _headers(),
@@ -135,13 +135,13 @@ class ApiService {
   }
 
   Future<void> deleteStudent(String studentId) async {
-    final uri = Uri.parse('${baseUrl}/students/$studentId');
+    final uri = Uri.parse('$baseUrl/students/$studentId');
     final response = await _client.delete(uri, headers: _headers());
     await _handleResponse(response);
   }
 
   Future<dynamic> uploadPhoto(File file) async {
-    final uri = Uri.parse('${baseUrl}/students/upload-photo');
+    final uri = Uri.parse('$baseUrl/students/upload-photo');
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(_authHeaders())
       ..files.add(await http.MultipartFile.fromPath('file', file.path));
@@ -157,7 +157,7 @@ class ApiService {
   }
 
   Future<dynamic> createClass(Map<String, dynamic> data) async {
-    final uri = Uri.parse('${baseUrl}/classes/');
+    final uri = Uri.parse('$baseUrl/classes/');
     final response = await _client.post(
       uri,
       headers: _headers(),
@@ -167,13 +167,13 @@ class ApiService {
   }
 
   Future<dynamic> getTeachers() async {
-    final uri = Uri.parse('${baseUrl}/teachers/');
+    final uri = Uri.parse('$baseUrl/teachers/');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> createTeacher(Map<String, dynamic> data) async {
-    final uri = Uri.parse('${baseUrl}/teachers/');
+    final uri = Uri.parse('$baseUrl/teachers/');
     final response = await _client.post(
       uri,
       headers: _headers(),
@@ -195,7 +195,7 @@ class ApiService {
   }
 
   Future<dynamic> startSession(Map<String, dynamic> data) async {
-    final uri = Uri.parse('${baseUrl}/sessions/');
+    final uri = Uri.parse('$baseUrl/sessions/');
     final response = await _client.post(
       uri,
       headers: _headers(),
@@ -205,13 +205,13 @@ class ApiService {
   }
 
   Future<dynamic> endSession(String sessionId) async {
-    final uri = Uri.parse('${baseUrl}/sessions/$sessionId/end');
+    final uri = Uri.parse('$baseUrl/sessions/$sessionId/end');
     final response = await _client.post(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> submitAttendance(String sessionId, Map<String, dynamic> data) async {
-    final uri = Uri.parse('${baseUrl}/attendance/sessions/$sessionId/submit');
+    final uri = Uri.parse('$baseUrl/attendance/sessions/$sessionId/submit');
     final response = await _client.post(
       uri,
       headers: _headers(),
@@ -221,7 +221,7 @@ class ApiService {
   }
 
   Future<dynamic> uploadStudentPhoto(String studentId, File file) async {
-    final uri = Uri.parse('${baseUrl}/students/$studentId/photos');
+    final uri = Uri.parse('$baseUrl/students/$studentId/photos');
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(_authHeaders())
       ..files.add(await http.MultipartFile.fromPath('file', file.path));
@@ -231,13 +231,13 @@ class ApiService {
   }
 
   Future<dynamic> getStudentPhotos(String studentId) async {
-    final uri = Uri.parse('${baseUrl}/students/$studentId/photos');
+    final uri = Uri.parse('$baseUrl/students/$studentId/photos');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> getStudentsNoEmbedding() async {
-    final uri = Uri.parse('${baseUrl}/students/no-embedding');
+    final uri = Uri.parse('$baseUrl/students/no-embedding');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
@@ -247,7 +247,7 @@ class ApiService {
     String photoId,
     Map<String, dynamic> data,
   ) async {
-    final uri = Uri.parse('${baseUrl}/students/$studentId/photos/$photoId/embedding');
+    final uri = Uri.parse('$baseUrl/students/$studentId/photos/$photoId/embedding');
     final response = await _client.put(
       uri,
       headers: _headers(),
@@ -257,31 +257,31 @@ class ApiService {
   }
 
   Future<dynamic> getStudentById(String studentId) async {
-    final uri = Uri.parse('${baseUrl}/students/$studentId');
+    final uri = Uri.parse('$baseUrl/students/$studentId');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> getClassById(String classId) async {
-    final uri = Uri.parse('${baseUrl}/classes/$classId');
+    final uri = Uri.parse('$baseUrl/classes/$classId');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> getSessionById(String sessionId) async {
-    final uri = Uri.parse('${baseUrl}/sessions/$sessionId');
+    final uri = Uri.parse('$baseUrl/sessions/$sessionId');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> getAttendanceSessionReport(String sessionId) async {
-    final uri = Uri.parse('${baseUrl}/attendance/sessions/$sessionId/report');
+    final uri = Uri.parse('$baseUrl/attendance/sessions/$sessionId/report');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
 
   Future<dynamic> getStudentAttendanceHistory(String studentId) async {
-    final uri = Uri.parse('${baseUrl}/attendance/students/$studentId/history');
+    final uri = Uri.parse('$baseUrl/attendance/students/$studentId/history');
     final response = await _client.get(uri, headers: _headers());
     return _handleResponse(response);
   }
