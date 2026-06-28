@@ -27,11 +27,15 @@ class _SessionsScreenState extends State<SessionsScreen>
   bool _preparingReport = false;
   bool _syncingSession = true;
   bool _studentsExpanded = false;
+  bool _reportLoading = false;
   int _markedCount = 0;
+  int _activeTabIndex = 0;
   String? _currentSessionId;
   Timer? _attendancePoller;
   late final AnimationController _blobController;
+  late final TabController _tabController;
   late Future<List<Map<String, dynamic>>> _studentsFuture;
+  List<_SessionStudentBreakdown> _studentBreakdown = const [];
 
   @override
   void initState() {
@@ -40,6 +44,12 @@ class _SessionsScreenState extends State<SessionsScreen>
       vsync: this,
       duration: const Duration(milliseconds: 4200),
     )..repeat();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() => _activeTabIndex = _tabController.index);
+      }
+    });
     _studentsFuture = _loadStudents();
 
     final cachedSessionId = SessionStore.currentSessionId;
@@ -55,6 +65,7 @@ class _SessionsScreenState extends State<SessionsScreen>
   @override
   void dispose() {
     _stopAttendancePolling();
+    _tabController.dispose();
     _blobController.dispose();
     super.dispose();
   }
@@ -249,8 +260,13 @@ class _SessionsScreenState extends State<SessionsScreen>
         _running = false;
         _currentSessionId = null;
         _markedCount = 0;
+        _activeTabIndex = 1;
       });
-      context.go('/profile');
+      _tabController.animateTo(1);
+      await _loadStudentBreakdown(sessionId);
+      if (mounted) {
+        context.go('/sessions');
+      }
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -394,6 +410,38 @@ class _SessionsScreenState extends State<SessionsScreen>
     }
 
     return query;
+  }
+
+  Future<void> _loadStudentBreakdown(String? sessionId) async {
+    if (sessionId == null || sessionId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _studentBreakdown = const [];
+          _reportLoading = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _reportLoading = true);
+    }
+
+    try {
+      final response = await ApiService().getAttendanceSessionReport(sessionId);
+      final breakdown = _extractStudentBreakdown(response);
+      if (!mounted) return;
+      setState(() {
+        _studentBreakdown = breakdown;
+        _reportLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _studentBreakdown = const [];
+        _reportLoading = false;
+      });
+    }
   }
 
   Future<Map<String, dynamic>?> _findActiveSession({
@@ -622,6 +670,114 @@ class _SessionsScreenState extends State<SessionsScreen>
     setState(() => _studentsExpanded = open ?? !_studentsExpanded);
   }
 
+  Widget _buildByStudentTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Student Overview',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        AppSpacing.gap8,
+        Text(
+          'Attendance activity and engagement for the current session.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.textSecondaryFor(context),
+          ),
+        ),
+        AppSpacing.gap16,
+        if (_reportLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_studentBreakdown.isEmpty)
+          AppCard(
+            child: Text(
+              'No student activity is available yet for this session.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textSecondaryFor(context),
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _studentBreakdown.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final student = _studentBreakdown[index];
+              return AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppTheme.brandGreen.withValues(alpha: 0.12),
+                          child: Text(student.initials),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                student.name,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (student.subtitle.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  student.subtitle,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondaryFor(context),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.gap16,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActivityStat(
+                            label: 'Marked',
+                            value: student.markedCount,
+                            total: student.totalCount,
+                            color: AppTheme.brandGreen,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ActivityStat(
+                            label: 'Pending',
+                            value: student.pendingCount,
+                            total: student.totalCount,
+                            color: AppTheme.accentOrange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveLayout.isDesktop(
@@ -641,320 +797,248 @@ class _SessionsScreenState extends State<SessionsScreen>
       'instructor',
       'assigned_teacher',
     ], '');
-    return Stack(
+    return Column(
       children: [
-        SingleChildScrollView(
-          padding: padding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceCardFor(context),
+            border: Border(
+              bottom: BorderSide(color: AppTheme.borderFor(context)),
+            ),
+          ),
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: AppTheme.brandGreen,
+            labelColor: AppTheme.textPrimaryFor(context),
+            unselectedLabelColor: AppTheme.textSecondaryFor(context),
+            tabs: const [
+              Tab(text: 'Session Overview'),
+              Tab(text: 'By Student'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Stack(
             children: [
-              Text(
-                'Sessions',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              AppSpacing.gap16,
-              if (className.isNotEmpty)
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Class Session',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      AppSpacing.gap8,
-                      Text(
-                        className,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (tutor.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          'Tutor: $tutor',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: AppTheme.textSecondaryFor(context),
-                              ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              Center(
-                child: Stack(
-                  alignment: Alignment.center,
+              SingleChildScrollView(
+                padding: padding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _AnimatedBlob(controller: _blobController),
-                    _SessionButton(
-                      running: _running,
-                      label: _syncingSession ? 'Wait' : null,
-                      onTap: (_stopping || _starting || _syncingSession)
-                          ? null
-                          : () => _running ? _stopSession() : _startSession(),
-                    ),
-                  ],
-                ),
-              ),
-              AppSpacing.gap16,
-              AppCard(
-                child: Row(
-                  children: [
-                    Icon(
-                      _running ? Icons.videocam : Icons.videocam_off,
-                      color: _running
-                          ? AppTheme.brandGreen
-                          : AppTheme.textSecondaryFor(context),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _running ? 'Session running' : 'Session stopped',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            _running
-                                ? 'Backend session is active and ready to be stopped here.'
-                                : _syncingSession
-                                ? 'Checking current session status...'
-                                : _starting
-                                ? 'Creating session on the backend...'
-                                : 'Press start to begin marking attendance',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.textSecondaryFor(context),
-                                ),
-                          ),
-                        ],
+                    if (_activeTabIndex == 0) ...[
+                      Text(
+                        'Sessions',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            (_running
-                                    ? AppTheme.brandGreen
-                                    : AppTheme.accentOrange)
-                                .withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _markedCount.toString(),
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            'Marked',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: AppTheme.textSecondaryFor(context),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (className.isNotEmpty) AppSpacing.gap16,
-              if (className.isNotEmpty)
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _studentsFuture,
-                  builder: (context, snapshot) {
-                    final students =
-                        snapshot.data ?? const <Map<String, dynamic>>[];
-                    final previewNames = students
-                        .take(3)
-                        .map(_resolveStudentName)
-                        .where((name) => name.isNotEmpty)
-                        .toList();
-
-                    return AppCard(
-                      child: InkWell(
-                        onTap:
-                            snapshot.connectionState == ConnectionState.waiting
-                            ? null
-                            : () => _toggleStudentsExpanded(),
-                        borderRadius: BorderRadius.circular(18),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
+                      AppSpacing.gap16,
+                      if (className.isNotEmpty)
+                        AppCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Text(
+                                'Class Session',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              AppSpacing.gap8,
+                              Text(
+                                className,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (tutor.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Tutor: $tutor',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: AppTheme.textSecondaryFor(context),
+                                      ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            _AnimatedBlob(controller: _blobController),
+                            _SessionButton(
+                              running: _running,
+                              label: _syncingSession ? 'Wait' : null,
+                              onTap: (_stopping || _starting || _syncingSession)
+                                  ? null
+                                  : () => _running ? _stopSession() : _startSession(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AppSpacing.gap16,
+                      AppCard(
+                        child: Row(
+                          children: [
+                            Icon(
+                              _running ? Icons.videocam : Icons.videocam_off,
+                              color: _running
+                                  ? AppTheme.brandGreen
+                                  : AppTheme.textSecondaryFor(context),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    height: 52,
-                                    width: 52,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.brandGreen.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: const Icon(
-                                      Icons.groups_2_outlined,
-                                      color: AppTheme.brandGreen,
-                                    ),
+                                  Text(
+                                    _running ? 'Session running' : 'Session stopped',
+                                    style: Theme.of(context).textTheme.bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
                                   ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Students',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
+                                  Text(
+                                    _running
+                                        ? 'Backend session is active and ready to be stopped here.'
+                                        : _syncingSession
+                                        ? 'Checking current session status...'
+                                        : _starting
+                                        ? 'Creating session on the backend...'
+                                        : 'Press start to begin marking attendance',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: AppTheme.textSecondaryFor(context),
                                         ),
-                                        const SizedBox(height: 4),
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting)
-                                          Text(
-                                            'Loading roster...',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color:
-                                                      AppTheme.textSecondaryFor(
-                                                        context,
-                                                      ),
-                                                ),
-                                          )
-                                        else if (students.isEmpty)
-                                          Text(
-                                            'No students found for this class.',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color:
-                                                      AppTheme.textSecondaryFor(
-                                                        context,
-                                                      ),
-                                                ),
-                                          )
-                                        else
-                                          Text(
-                                            _studentsExpanded
-                                                ? 'Tap again to close the student list.'
-                                                : previewNames.join(' • '),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color:
-                                                      AppTheme.textSecondaryFor(
-                                                        context,
-                                                      ),
-                                                ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        '${students.length}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                      Text(
-                                        _studentsExpanded ? 'Hide' : 'Show all',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelMedium
-                                            ?.copyWith(
-                                              color: AppTheme.textSecondaryFor(
-                                                context,
-                                              ),
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 8),
-                                  AnimatedRotation(
-                                    turns: _studentsExpanded ? 0.5 : 0,
-                                    duration: const Duration(milliseconds: 220),
-                                    child: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                    ),
                                   ),
                                 ],
                               ),
-                              AnimatedSize(
-                                duration: const Duration(milliseconds: 220),
-                                curve: Curves.easeInOut,
-                                child: !_studentsExpanded
-                                    ? const SizedBox.shrink()
-                                    : Padding(
-                                        padding: const EdgeInsets.only(top: 16),
-                                        child:
-                                            snapshot.connectionState ==
-                                                ConnectionState.waiting
-                                            ? const Center(
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              )
-                                            : students.isEmpty
-                                            ? Text(
-                                                'No students found for this class.',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color:
-                                                          AppTheme.textSecondaryFor(
-                                                            context,
-                                                          ),
-                                                    ),
-                                              )
-                                            : Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    (_running
+                                            ? AppTheme.brandGreen
+                                            : AppTheme.accentOrange)
+                                        .withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _markedCount.toString(),
+                                    style: Theme.of(context).textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  Text(
+                                    'Marked',
+                                    style: Theme.of(context).textTheme.labelSmall
+                                        ?.copyWith(
+                                          color: AppTheme.textSecondaryFor(context),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (className.isNotEmpty) AppSpacing.gap16,
+                      if (className.isNotEmpty)
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _studentsFuture,
+                          builder: (context, snapshot) {
+                            final students =
+                                snapshot.data ?? const <Map<String, dynamic>>[];
+                            final previewNames = students
+                                .take(3)
+                                .map(_resolveStudentName)
+                                .where((name) => name.isNotEmpty)
+                                .toList();
+
+                            return AppCard(
+                              child: InkWell(
+                                onTap:
+                                    snapshot.connectionState == ConnectionState.waiting
+                                    ? null
+                                    : () => _toggleStudentsExpanded(),
+                                borderRadius: BorderRadius.circular(18),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            height: 52,
+                                            width: 52,
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.brandGreen.withValues(
+                                                alpha: 0.12,
+                                              ),
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                            child: const Icon(
+                                              Icons.groups_2_outlined,
+                                              color: AppTheme.brandGreen,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Students',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                if (snapshot.connectionState ==
+                                                    ConnectionState.waiting)
                                                   Text(
-                                                    'Class roster',
+                                                    'Loading roster...',
                                                     style: Theme.of(context)
                                                         .textTheme
-                                                        .titleSmall
+                                                        .bodySmall
                                                         ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
+                                                          color:
+                                                              AppTheme.textSecondaryFor(
+                                                                context,
+                                                              ),
                                                         ),
-                                                  ),
-                                                  const SizedBox(height: 6),
+                                                  )
+                                                else if (students.isEmpty)
                                                   Text(
-                                                    'Students available for attendance in this session.',
+                                                    'No students found for this class.',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color:
+                                                              AppTheme.textSecondaryFor(
+                                                                context,
+                                                              ),
+                                                        ),
+                                                  )
+                                                else
+                                                  Text(
+                                                    _studentsExpanded
+                                                        ? 'Tap again to close the student list.'
+                                                        : previewNames.join(' • '),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .bodySmall
@@ -965,107 +1049,207 @@ class _SessionsScreenState extends State<SessionsScreen>
                                                               ),
                                                         ),
                                                   ),
-                                                  const SizedBox(height: 12),
-                                                  ListView.separated(
-                                                    itemCount: students.length,
-                                                    separatorBuilder: (_, _) =>
-                                                        const Divider(
-                                                          height: 20,
-                                                        ),
-                                                    physics:
-                                                        const NeverScrollableScrollPhysics(),
-                                                    shrinkWrap: true,
-                                                    itemBuilder: (context, index) {
-                                                      final student =
-                                                          students[index];
-                                                      final name =
-                                                          _resolveStudentName(
-                                                            student,
-                                                          );
-                                                      final studentCode =
-                                                          _nestedRead(
-                                                            student,
-                                                            const [
-                                                              'student_code',
-                                                              'code',
-                                                              'roll_no',
-                                                              'registration_no',
-                                                              'student_id',
-                                                              'id',
-                                                            ],
-                                                          );
-
-                                                      return ListTile(
-                                                        contentPadding:
-                                                            EdgeInsets.zero,
-                                                        leading: CircleAvatar(
-                                                          backgroundColor:
-                                                              AppTheme
-                                                                  .brandGreen
-                                                                  .withValues(
-                                                                    alpha: 0.12,
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                '${students.length}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleLarge
+                                                    ?.copyWith(
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                              ),
+                                              Text(
+                                                _studentsExpanded ? 'Hide' : 'Show all',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelMedium
+                                                    ?.copyWith(
+                                                      color: AppTheme.textSecondaryFor(
+                                                        context,
+                                                      ),
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 8),
+                                          AnimatedRotation(
+                                            turns: _studentsExpanded ? 0.5 : 0,
+                                            duration: const Duration(milliseconds: 220),
+                                            child: const Icon(
+                                              Icons.keyboard_arrow_down_rounded,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      AnimatedSize(
+                                        duration: const Duration(milliseconds: 220),
+                                        curve: Curves.easeInOut,
+                                        child: !_studentsExpanded
+                                            ? const SizedBox.shrink()
+                                            : Padding(
+                                                padding: const EdgeInsets.only(top: 16),
+                                                child:
+                                                    snapshot.connectionState ==
+                                                        ConnectionState.waiting
+                                                    ? const Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                            ),
+                                                      )
+                                                    : students.isEmpty
+                                                    ? Text(
+                                                        'No students found for this class.',
+                                                        style: Theme.of(context)
+                                                            .textTheme
+                                                            .bodyMedium
+                                                            ?.copyWith(
+                                                              color:
+                                                                  AppTheme.textSecondaryFor(
+                                                                    context,
                                                                   ),
-                                                          child: Text(
-                                                            name.isEmpty
-                                                                ? '?'
-                                                                : name
-                                                                      .substring(
-                                                                        0,
-                                                                        1,
-                                                                      )
-                                                                      .toUpperCase(),
+                                                            ),
+                                                      )
+                                                    : Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            'Class roster',
+                                                            style: Theme.of(context)
+                                                                .textTheme
+                                                                .titleSmall
+                                                                ?.copyWith(
+                                                                  fontWeight:
+                                                                      FontWeight.w700,
+                                                                ),
                                                           ),
-                                                        ),
-                                                        title: Text(name),
-                                                        subtitle:
-                                                            studentCode.isEmpty
-                                                            ? null
-                                                            : Text(studentCode),
-                                                      );
-                                                    },
-                                                  ),
-                                                ],
+                                                          const SizedBox(height: 6),
+                                                          Text(
+                                                            'Students available for attendance in this session.',
+                                                            style: Theme.of(context)
+                                                                .textTheme
+                                                                .bodySmall
+                                                                ?.copyWith(
+                                                                  color:
+                                                                      AppTheme.textSecondaryFor(
+                                                                        context,
+                                                                      ),
+                                                                ),
+                                                          ),
+                                                          const SizedBox(height: 12),
+                                                          ListView.separated(
+                                                            itemCount: students.length,
+                                                            separatorBuilder: (_, _) =>
+                                                                const Divider(
+                                                                  height: 20,
+                                                                ),
+                                                            physics:
+                                                                const NeverScrollableScrollPhysics(),
+                                                            shrinkWrap: true,
+                                                            itemBuilder: (context, index) {
+                                                              final student =
+                                                                  students[index];
+                                                              final name =
+                                                                  _resolveStudentName(
+                                                                    student,
+                                                                  );
+                                                              final studentCode =
+                                                                  _nestedRead(
+                                                                    student,
+                                                                    const [
+                                                                      'student_code',
+                                                                      'code',
+                                                                      'roll_no',
+                                                                      'registration_no',
+                                                                      'student_id',
+                                                                      'id',
+                                                                    ],
+                                                                  );
+
+                                                              return ListTile(
+                                                                contentPadding:
+                                                                    EdgeInsets.zero,
+                                                                leading: CircleAvatar(
+                                                                  backgroundColor:
+                                                                      AppTheme
+                                                                          .brandGreen
+                                                                          .withValues(
+                                                                            alpha: 0.12,
+                                                                          ),
+                                                                  child: Text(
+                                                                    name.isEmpty
+                                                                        ? '?'
+                                                                        : name
+                                                                              .substring(
+                                                                                0,
+                                                                                1,
+                                                                              )
+                                                                              .toUpperCase(),
+                                                                  ),
+                                                                ),
+                                                                title: Text(name),
+                                                                subtitle:
+                                                                    studentCode.isEmpty
+                                                                    ? null
+                                                                    : Text(studentCode),
+                                                              );
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ),
                                               ),
                                       ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
+                    ] else
+                      _buildByStudentTab(),
+                  ],
+                ),
+              ),
+              if (_stopping || _starting || _syncingSession)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(strokeWidth: 2),
+                          const SizedBox(height: 12),
+                          Text(
+                            _starting
+                                ? 'Starting session...'
+                                : _preparingReport
+                                ? 'Preparing report...'
+                                : _stopping
+                                ? 'Stopping session...'
+                                : 'Checking session status...',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
             ],
           ),
         ),
-        if (_stopping || _starting || _syncingSession)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.35),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(strokeWidth: 2),
-                    const SizedBox(height: 12),
-                    Text(
-                      _starting
-                          ? 'Starting session...'
-                          : _preparingReport
-                          ? 'Preparing report...'
-                          : _stopping
-                          ? 'Stopping session...'
-                          : 'Checking session status...',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -1122,6 +1306,58 @@ class _SessionButton extends StatelessWidget {
   }
 }
 
+class _ActivityStat extends StatelessWidget {
+  const _ActivityStat({
+    required this.label,
+    required this.value,
+    required this.total,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final int total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = total <= 0 ? 0.0 : value / total;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondaryFor(context),
+              ),
+            ),
+            Text(
+              '$value',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: percent.clamp(0.0, 1.0),
+            minHeight: 7,
+            backgroundColor: AppTheme.surfaceAltFor(context),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
 class _AnimatedBlob extends StatelessWidget {
   const _AnimatedBlob({required this.controller});
 
@@ -1167,6 +1403,60 @@ class _AnimatedBlob extends StatelessWidget {
       },
     );
   }
+}
+
+List<_SessionStudentBreakdown> _extractStudentBreakdown(dynamic response) {
+  final items = _extractList(response, const ['students', 'records', 'attendance', 'items', 'data']);
+  if (items.isEmpty) {
+    return const [];
+  }
+
+  return items.whereType<Map>().map((item) {
+    final map = Map<String, dynamic>.from(item);
+    final status = _nestedRead(
+      map,
+      const ['final_status', 'status', 'attendance_status', 'remark'],
+      fallback: 'ABSENT',
+    ).toUpperCase();
+    final present = status == 'PRESENT';
+    final engagement = _nestedRead(
+      map,
+      const ['final_engagement', 'engagement', 'engaged_status'],
+      fallback: '',
+    ).toUpperCase();
+    final active = _intValue(map, const ['engaged_count', 'engaged'], fallback: 0);
+    final distracted = _intValue(map, const ['distracted_count', 'distracted'], fallback: 0);
+    final sleeping = _intValue(map, const ['sleeping_count', 'sleeping'], fallback: 0);
+    final phone = _intValue(map, const ['phone_count', 'phone'], fallback: 0);
+    final total = [active, distracted, sleeping, phone].fold(0, (sum, value) => sum + value);
+    final marked = present ? total : 0;
+    final pending = total > 0 ? total - marked : 0;
+    final totalCount = total > 0 ? total : 1;
+
+    return _SessionStudentBreakdown(
+      name: _nestedRead(
+        map,
+        const ['full_name', 'student_full_name', 'student_name', 'name'],
+        fallback: 'Student',
+      ),
+      subtitle: _nestedRead(
+        map,
+        const ['student_code', 'code', 'roll_no', 'registration_no', 'student_id', 'id'],
+        fallback: '',
+      ),
+      status: present ? 'Present' : 'Absent',
+      color: present ? AppTheme.brandGreen : AppTheme.danger,
+      engagement: engagement.isEmpty ? 'N/A' : engagement,
+      activeCount: active,
+      distractedCount: distracted,
+      sleepingCount: sleeping,
+      phoneCount: phone,
+      totalActivity: total,
+      markedCount: marked,
+      pendingCount: pending,
+      totalCount: totalCount,
+    );
+  }).toList();
 }
 
 String _readValue(dynamic item, List<String> keys, String fallback) {
@@ -1467,4 +1757,55 @@ bool _looksLikeAlreadyRunning(Object error) {
       message.contains('already started') ||
       message.contains('session is already') ||
       message.contains('409');
+}
+
+int _intValue(Map<String, dynamic> item, List<String> keys, {int fallback = 0}) {
+  for (final key in keys) {
+    final value = item[key];
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String && value.trim().isNotEmpty) {
+      return int.tryParse(value) ?? fallback;
+    }
+  }
+  return fallback;
+}
+
+class _SessionStudentBreakdown {
+  const _SessionStudentBreakdown({
+    required this.name,
+    required this.subtitle,
+    required this.status,
+    required this.color,
+    required this.engagement,
+    required this.activeCount,
+    required this.distractedCount,
+    required this.sleepingCount,
+    required this.phoneCount,
+    required this.totalActivity,
+    required this.markedCount,
+    required this.pendingCount,
+    required this.totalCount,
+  });
+
+  final String name;
+  final String subtitle;
+  final String status;
+  final Color color;
+  final String engagement;
+  final int activeCount;
+  final int distractedCount;
+  final int sleepingCount;
+  final int phoneCount;
+  final int totalActivity;
+  final int markedCount;
+  final int pendingCount;
+  final int totalCount;
+
+  String get initials {
+    if (name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return parts.take(2).map((part) => part.substring(0, 1).toUpperCase()).join();
+  }
 }

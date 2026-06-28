@@ -23,7 +23,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _filtersLoading = true;
   bool _historyLoading = true;
   bool _breakdownLoading = true;
-  int _tabIndex = 0;
   String? _expandedStudentId;
   String? _expandedHistorySessionId;
   String? _preferredReportSessionId;
@@ -625,14 +624,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           AppSpacing.gap20,
-          _ReportTabs(
-            currentIndex: _tabIndex,
-            onChanged: (value) => setState(() => _tabIndex = value),
-          ),
-          AppSpacing.gap16,
-          if (_tabIndex == 0) _buildThisSessionTab(context),
-          if (_tabIndex == 1) _buildClassHistoryTab(context),
-          if (_tabIndex == 2) _buildByStudentTab(context),
+          _buildClassHistoryTab(context),
         ],
       ),
     );
