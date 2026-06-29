@@ -20,7 +20,7 @@ class SessionsScreen extends StatefulWidget {
 }
 
 class _SessionsScreenState extends State<SessionsScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _running = false;
   bool _starting = false;
   bool _stopping = false;
@@ -36,6 +36,7 @@ class _SessionsScreenState extends State<SessionsScreen>
   late final TabController _tabController;
   late Future<List<Map<String, dynamic>>> _studentsFuture;
   List<_SessionStudentBreakdown> _studentBreakdown = const [];
+  final Set<int> _expandedStudents = {};
 
   @override
   void initState() {
@@ -712,63 +713,95 @@ class _SessionsScreenState extends State<SessionsScreen>
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final student = _studentBreakdown[index];
+              final expanded = _expandedStudents.contains(index);
               return AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppTheme.brandGreen.withValues(alpha: 0.12),
-                          child: Text(student.initials),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                student.name,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (student.subtitle.isNotEmpty) ...[
-                                const SizedBox(height: 4),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          if (expanded) {
+                            _expandedStudents.remove(index);
+                          } else {
+                            _expandedStudents.add(index);
+                          }
+                        });
+                      },
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: AppTheme.brandGreen.withValues(alpha: 0.12),
+                            child: Text(student.initials),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  student.subtitle,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textSecondaryFor(context),
+                                  student.name,
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
+                                if (student.subtitle.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    student.subtitle,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppTheme.textSecondaryFor(context),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: student.color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              student.status,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: student.color,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Icon(
+                            expanded ? Icons.expand_less : Icons.expand_more,
+                            color: AppTheme.textSecondaryFor(context),
+                          ),
+                        ],
+                      ),
                     ),
-                    AppSpacing.gap16,
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ActivityStat(
-                            label: 'Marked',
-                            value: student.markedCount,
-                            total: student.totalCount,
-                            color: AppTheme.brandGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ActivityStat(
-                            label: 'Pending',
-                            value: student.pendingCount,
-                            total: student.totalCount,
-                            color: AppTheme.accentOrange,
-                          ),
-                        ),
-                      ],
-                    ),
+                    AppSpacing.gap12,
+                    if (_expandedStudents.contains(index)) ...[
+                      _ActivityStat(
+                        label: 'Active',
+                        value: student.activeCount,
+                        total: student.totalCount,
+                        color: AppTheme.brandGreen,
+                      ),
+                      AppSpacing.gap12,
+                      _ActivityStat(
+                        label: 'Distracted',
+                        value: student.distractedCount,
+                        total: student.totalCount,
+                        color: AppTheme.accentOrange,
+                      ),
+                      AppSpacing.gap12,
+                      _ActivityStat(
+                        label: 'Sleeping',
+                        value: student.sleepingCount,
+                        total: student.totalCount,
+                        color: AppTheme.danger,
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -1322,6 +1355,7 @@ class _ActivityStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = total <= 0 ? 0.0 : value / total;
+    final percentText = '${(percent * 100).round()}%';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1335,7 +1369,7 @@ class _ActivityStat extends StatelessWidget {
               ),
             ),
             Text(
-              '$value',
+              percentText,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),

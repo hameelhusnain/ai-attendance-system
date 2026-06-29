@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
 
-  static const String defaultBaseUrl = 'https://flyless-lavern-unstealthy.ngrok-free.dev';
+  static const String defaultBaseUrl = 'https://flyless-lavern-unstealthy.ngrok-free.dev/docs';
   final http.Client _client;
   String? _token;
 
