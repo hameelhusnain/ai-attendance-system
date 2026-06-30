@@ -17,27 +17,20 @@ class DashboardOverviewScreen extends StatefulWidget {
 
 class _DashboardOverviewScreenState extends State<DashboardOverviewScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _nameController;
-  late final Animation<Color?> _nameColor;
+  // Animation disabled: not used in current UI.
+  // late final AnimationController _nameController;
   late Future<List<dynamic>> _classesFuture;
 
   @override
   void initState() {
     super.initState();
-    _nameController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
-    _nameColor = ColorTween(
-      begin: AppTheme.brandGreen,
-      end: AppTheme.accentOrange,
-    ).animate(CurvedAnimation(parent: _nameController, curve: Curves.easeInOut));
+    // animation controller initialization removed (unused)
     _classesFuture = _loadClasses();
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    // _nameController.dispose();
     super.dispose();
   }
 
@@ -174,13 +167,13 @@ class _ClassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Row(
+                child: Row(
             children: [
               Container(
                 height: 48,
                 width: 48,
                 decoration: BoxDecoration(
-                  color: AppTheme.brandGreen.withOpacity(0.14),
+                  color: AppTheme.brandGreen.withAlpha((0.14 * 255).round()),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(Icons.class_outlined, color: AppTheme.brandGreen),

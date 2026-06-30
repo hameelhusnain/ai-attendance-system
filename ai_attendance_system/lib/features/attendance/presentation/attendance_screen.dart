@@ -120,7 +120,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: CircleAvatar(
-                            backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
+                            backgroundColor: AppTheme.brandGreen.withAlpha((0.12 * 255).round()),
                             child: Text(title.substring(0, 1).toUpperCase()),
                           ),
                           title: Text(title),
@@ -161,7 +161,7 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Chip(
       label: Text(label),
-      backgroundColor: AppTheme.brandGreen.withOpacity(0.16),
+      backgroundColor: AppTheme.brandGreen.withAlpha((0.16 * 255).round()),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
@@ -180,7 +180,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withAlpha((0.12 * 255).round()),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(

@@ -256,7 +256,7 @@ class AppSidebar extends StatelessWidget {
   final String location;
   final bool isDrawer;
 
-  final List<_NavItem> items = const [
+  final List<_NavItem> _items = const [
     _NavItem(label: 'Dashboard', icon: Icons.dashboard_outlined, route: '/dashboard'),
     _NavItem(label: 'Sessions', icon: Icons.timer_outlined, route: '/sessions'),
     _NavItem(label: 'Report', icon: Icons.bar_chart_outlined, route: '/profile'),
@@ -297,7 +297,7 @@ class AppSidebar extends StatelessWidget {
                     width: 36,
                     decoration: BoxDecoration(
                       color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white.withOpacity(0.12)
+                          ? Colors.white.withAlpha((0.12 * 255).round())
                           : AppTheme.lightSurfaceAlt,
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -319,7 +319,7 @@ class AppSidebar extends StatelessWidget {
                 ],
               ),
               AppSpacing.gap24,
-              for (final item in items)
+              for (final item in _items)
                 _SidebarItem(
                   item: item,
                   isActive: location.startsWith(item.route),
@@ -373,7 +373,7 @@ class _SidebarItem extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white.withOpacity(0.12) : Colors.transparent,
+          color: isActive ? Colors.white.withAlpha((0.12 * 255).round()) : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(

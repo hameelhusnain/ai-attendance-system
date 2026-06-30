@@ -227,7 +227,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
                               leading: CircleAvatar(
-                                backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
+                                backgroundColor: AppTheme.brandGreen.withAlpha((0.12 * 255).round()),
                                 child: Text(name.substring(0, 1).toUpperCase()),
                               ),
                               title: Text(name),
@@ -279,7 +279,7 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withAlpha((0.12 * 255).round()),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(

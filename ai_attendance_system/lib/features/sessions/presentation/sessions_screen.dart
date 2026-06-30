@@ -38,6 +38,30 @@ class _SessionsScreenState extends State<SessionsScreen>
   List<_SessionStudentBreakdown> _studentBreakdown = const [];
   final Set<int> _expandedStudents = {};
 
+  int get _currentPresentCount {
+    if (_studentBreakdown.isNotEmpty) {
+      return _studentBreakdown
+          .where((student) => student.status.toUpperCase() == 'PRESENT')
+          .length;
+    }
+    return _markedCount;
+  }
+
+  int get _currentAbsentCount {
+    if (_studentBreakdown.isNotEmpty) {
+      return _studentBreakdown
+          .where((student) => student.status.toUpperCase() == 'ABSENT')
+          .length;
+    }
+    return 0;
+  }
+
+  double get _currentAttendanceRate {
+    final total = _currentPresentCount + _currentAbsentCount;
+    if (total <= 0) return 0.0;
+    return (_currentPresentCount / total) * 100;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -189,6 +213,7 @@ class _SessionsScreenState extends State<SessionsScreen>
       _startAttendancePolling(sessionId);
       await _loadStudentBreakdown(sessionId);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Session started successfully.')),
       );
@@ -763,7 +788,7 @@ class _SessionsScreenState extends State<SessionsScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: student.color.withOpacity(0.12),
+                              color: student.color.withAlpha((0.12 * 255).round()),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(

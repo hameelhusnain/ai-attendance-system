@@ -217,7 +217,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: _selectedSessionId != null && _selectedSessionId == _findSessionId(session)
-                                ? AppTheme.surfaceCard.withOpacity(0.08)
+                                ? AppTheme.surfaceCard.withAlpha((0.08 * 255).round())
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -382,7 +382,7 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withAlpha((0.12 * 255).round()),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(

@@ -152,7 +152,7 @@ class _ProfileCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: AppTheme.brandGreen.withOpacity(0.12),
+                backgroundColor: AppTheme.brandGreen.withAlpha((0.12 * 255).round()),
                 child: Text(name.substring(0, 1).toUpperCase()),
               ),
               const SizedBox(width: 16),

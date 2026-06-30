@@ -179,7 +179,7 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: surfaceAlt,
-        selectedColor: brandGreen.withOpacity(0.2),
+        selectedColor: brandGreen.withAlpha((0.2 * 255).round()),
         labelStyle: const TextStyle(color: textPrimary, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

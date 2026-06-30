@@ -45,7 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
         SessionStore.displayName =
-            rawInput.contains('@') ? rawInput.split('@').first : rawInput;
+          rawInput.contains('@') ? rawInput.split('@').first : rawInput;
+        if (!mounted) return;
         context.go('/dashboard');
       }
     } catch (error) {
