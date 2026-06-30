@@ -616,13 +616,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
-          AppSpacing.gap8,
-          Text(
-            _reportSubtitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSecondaryFor(context),
-            ),
-          ),
           AppSpacing.gap20,
           _buildClassHistoryTab(context),
         ],

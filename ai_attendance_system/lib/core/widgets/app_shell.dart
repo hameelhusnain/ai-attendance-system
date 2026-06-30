@@ -53,7 +53,7 @@ class AppShell extends StatelessWidget {
               child: child,
             ),
           ),
-          bottomNavigationBar: _BottomNav(location: location),
+          bottomNavigationBar: location == '/dashboard' ? null : _BottomNav(location: location),
         );
       },
     );
@@ -398,7 +398,7 @@ class _BottomNav extends StatelessWidget {
 
   int _indexForLocation(String location) {
     if (location.startsWith('/sessions')) return 1;
-    if (location.startsWith('/profile')) return 2;
+    if (location.startsWith('/profile') || location.startsWith('/reports')) return 2;
     return 0;
   }
 

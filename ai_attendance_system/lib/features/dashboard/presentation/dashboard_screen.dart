@@ -70,29 +70,12 @@ class _DashboardOverviewScreenState extends State<DashboardOverviewScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppReveal(
-            child: RichText(
-              text: TextSpan(
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimaryFor(context),
-                    ),
-                children: [
-                  const TextSpan(text: 'Welcome '),
-                  WidgetSpan(
-                    child: AnimatedBuilder(
-                      animation: _nameColor,
-                      builder: (context, _) => Text(
-                        _displayName(),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: _nameColor.value,
-                            ),
-                      ),
-                    ),
+            child: Text(
+              _displayName(),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimaryFor(context),
                   ),
-                  const TextSpan(text: ','),
-                ],
-              ),
             ),
           ),
           AppSpacing.gap8,

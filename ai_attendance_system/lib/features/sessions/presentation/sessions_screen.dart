@@ -91,6 +91,7 @@ class _SessionsScreenState extends State<SessionsScreen>
           _markedCount = _extractMarkedCount(activeSession);
         });
         _startAttendancePolling(sessionId);
+        await _loadStudentBreakdown(sessionId);
         await SessionStore.saveCurrentSession(
           sessionId: sessionId,
           session: activeSession,
@@ -100,6 +101,7 @@ class _SessionsScreenState extends State<SessionsScreen>
           _running = false;
           _currentSessionId = null;
           _markedCount = 0;
+          _studentBreakdown = const [];
         });
         _stopAttendancePolling();
         await SessionStore.clearCurrentSession();
@@ -185,6 +187,7 @@ class _SessionsScreenState extends State<SessionsScreen>
         );
       });
       _startAttendancePolling(sessionId);
+      await _loadStudentBreakdown(sessionId);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Session started successfully.')),
@@ -897,6 +900,40 @@ class _SessionsScreenState extends State<SessionsScreen>
                             ],
                           ),
                         ),
+                      AppSpacing.gap16,
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _SessionSummaryStatCard(
+                                    title: 'Present',
+                                    value: _currentPresentCount.toString(),
+                                    color: AppTheme.brandGreen,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _SessionSummaryStatCard(
+                                    title: 'Absent',
+                                    value: _currentAbsentCount.toString(),
+                                    color: AppTheme.accentOrange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            AppSpacing.gap12,
+                            Text(
+                              'Attendance rate: ${_currentAttendanceRate.toStringAsFixed(0)}%',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondaryFor(context),
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
                       Center(
                         child: Stack(
                           alignment: Alignment.center,
@@ -1334,6 +1371,41 @@ class _SessionButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SessionSummaryStatCard extends StatelessWidget {
+  const _SessionSummaryStatCard({
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          AppSpacing.gap12,
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+          ),
+        ],
       ),
     );
   }
