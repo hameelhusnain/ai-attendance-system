@@ -198,6 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ]);
     final sessions = _normalizeSessions(sessionsRaw);
     final resolvedSessions = sessions.isNotEmpty ? sessions : sessionsRaw;
+    final filteredSessions = _applyDateFilter(resolvedSessions, _selectedDateRange);
     final activeSessionId = SessionStore.currentSessionId;
     final activeClassId = _stringValue(SessionStore.selectedClass, [
       'id',
@@ -217,7 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? _stringValue(resolvedSessions.first, ['id', 'session_id'])
         : null;
     final historyCards = await _buildHistoryCards(
-      resolvedSessions,
+      filteredSessions,
       classStudents: classStudents,
       fallbackStudentCount: classStudents.length,
       prioritizedSessionId: selectedReportSessionId,
@@ -342,11 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'label',
             'name',
           ], _selectedClassName),
-          dateLabel: _stringValue(session, [
-            'date',
-            'session_date',
-            'created_at',
-          ], 'Recent Session'),
+          dateLabel: _resolveSessionDateLabel(session),
           timeLabel: _joinNonEmpty([
             _stringValue(session, ['time', 'start_time']),
             _stringValue(session, ['end_time']),
@@ -1200,6 +1197,70 @@ String _formatDate(DateTime date) {
   final month = date.month.toString().padLeft(2, '0');
   final day = date.day.toString().padLeft(2, '0');
   return '${date.year}-$month-$day';
+}
+
+List<Map<String, dynamic>> _applyDateFilter(
+  List<Map<String, dynamic>> sessions,
+  DateTimeRange? range,
+) {
+  if (range == null) {
+    return sessions;
+  }
+
+  final start = DateTime(range.start.year, range.start.month, range.start.day);
+  final end = DateTime(
+    range.end.year,
+    range.end.month,
+    range.end.day,
+    23,
+    59,
+    59,
+    999,
+  );
+
+  return sessions.where((session) {
+    final parsed = _tryParseSessionDate(
+      _stringValue(session, [
+        'date',
+        'session_date',
+        'created_at',
+        'createdAt',
+        'start_date',
+        'started_at',
+        'timestamp',
+      ]),
+    );
+    return parsed != null && !parsed.isBefore(start) && !parsed.isAfter(end);
+  }).toList();
+}
+
+DateTime? _tryParseSessionDate(String value) {
+  if (value.isEmpty) return null;
+  return DateTime.tryParse(value.replaceFirst(' ', 'T'));
+}
+
+String _resolveSessionDateLabel(Map<String, dynamic> session) {
+  final direct = _stringValue(session, [
+    'date',
+    'session_date',
+    'created_at',
+    'createdAt',
+    'start_date',
+    'started_at',
+    'timestamp',
+  ]);
+  final parsed = _tryParseSessionDate(direct);
+  if (parsed != null) {
+    return _formatDate(parsed);
+  }
+
+  final timeValue = _stringValue(session, ['time', 'start_time', 'end_time']);
+  final parsedTime = _tryParseSessionDate(timeValue);
+  if (parsedTime != null) {
+    return _formatDate(parsedTime);
+  }
+
+  return _formatDate(DateTime.now());
 }
 
 String _classFilterLabel(Map<String, dynamic> item) {

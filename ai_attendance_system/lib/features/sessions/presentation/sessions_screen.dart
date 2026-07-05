@@ -717,6 +717,40 @@ class _SessionsScreenState extends State<SessionsScreen>
           ),
         ),
         AppSpacing.gap16,
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _SessionSummaryStatCard(
+                      title: 'Present',
+                      value: _currentPresentCount.toString(),
+                      color: AppTheme.brandGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _SessionSummaryStatCard(
+                      title: 'Absent',
+                      value: _currentAbsentCount.toString(),
+                      color: AppTheme.accentOrange,
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gap12,
+              Text(
+                'Attendance rate: ${_currentAttendanceRate.toStringAsFixed(0)}%',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textSecondaryFor(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gap16,
         if (_reportLoading)
           const Center(
             child: Padding(
@@ -829,6 +863,13 @@ class _SessionsScreenState extends State<SessionsScreen>
                         total: student.totalCount,
                         color: AppTheme.danger,
                       ),
+                      AppSpacing.gap12,
+                      _ActivityStat(
+                        label: 'Talking',
+                        value: student.talkingCount,
+                        total: student.totalCount,
+                        color: Colors.blueAccent,
+                      ),
                     ],
                   ],
                 ),
@@ -926,39 +967,6 @@ class _SessionsScreenState extends State<SessionsScreen>
                           ),
                         ),
                       AppSpacing.gap16,
-                      AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _SessionSummaryStatCard(
-                                    title: 'Present',
-                                    value: _currentPresentCount.toString(),
-                                    color: AppTheme.brandGreen,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _SessionSummaryStatCard(
-                                    title: 'Absent',
-                                    value: _currentAbsentCount.toString(),
-                                    color: AppTheme.accentOrange,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            AppSpacing.gap12,
-                            Text(
-                              'Attendance rate: ${_currentAttendanceRate.toStringAsFixed(0)}%',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textSecondaryFor(context),
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
                       Center(
                         child: Stack(
                           alignment: Alignment.center,
@@ -970,75 +978,6 @@ class _SessionsScreenState extends State<SessionsScreen>
                               onTap: (_stopping || _starting || _syncingSession)
                                   ? null
                                   : () => _running ? _stopSession() : _startSession(),
-                            ),
-                          ],
-                        ),
-                      ),
-                      AppSpacing.gap16,
-                      AppCard(
-                        child: Row(
-                          children: [
-                            Icon(
-                              _running ? Icons.videocam : Icons.videocam_off,
-                              color: _running
-                                  ? AppTheme.brandGreen
-                                  : AppTheme.textSecondaryFor(context),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _running ? 'Session running' : 'Session stopped',
-                                    style: Theme.of(context).textTheme.bodyMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  Text(
-                                    _running
-                                        ? 'Backend session is active and ready to be stopped here.'
-                                        : _syncingSession
-                                        ? 'Checking current session status...'
-                                        : _starting
-                                        ? 'Creating session on the backend...'
-                                        : 'Press start to begin marking attendance',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: AppTheme.textSecondaryFor(context),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    (_running
-                                            ? AppTheme.brandGreen
-                                            : AppTheme.accentOrange)
-                                        .withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    _markedCount.toString(),
-                                    style: Theme.of(context).textTheme.titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                  Text(
-                                    'Marked',
-                                    style: Theme.of(context).textTheme.labelSmall
-                                        ?.copyWith(
-                                          color: AppTheme.textSecondaryFor(context),
-                                        ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ],
                         ),
@@ -1558,8 +1497,9 @@ List<_SessionStudentBreakdown> _extractStudentBreakdown(dynamic response) {
     final active = _intValue(map, const ['engaged_count', 'engaged'], fallback: 0);
     final distracted = _intValue(map, const ['distracted_count', 'distracted'], fallback: 0);
     final sleeping = _intValue(map, const ['sleeping_count', 'sleeping'], fallback: 0);
+    final talking = _intValue(map, const ['talking_count', 'talking', 'speaking_count', 'speaking'], fallback: 0);
     final phone = _intValue(map, const ['phone_count', 'phone'], fallback: 0);
-    final total = [active, distracted, sleeping, phone].fold(0, (sum, value) => sum + value);
+    final total = [active, distracted, sleeping, talking, phone].fold(0, (sum, value) => sum + value);
     final marked = present ? total : 0;
     final pending = total > 0 ? total - marked : 0;
     final totalCount = total > 0 ? total : 1;
@@ -1581,6 +1521,7 @@ List<_SessionStudentBreakdown> _extractStudentBreakdown(dynamic response) {
       activeCount: active,
       distractedCount: distracted,
       sleepingCount: sleeping,
+      talkingCount: talking,
       phoneCount: phone,
       totalActivity: total,
       markedCount: marked,
@@ -1912,6 +1853,7 @@ class _SessionStudentBreakdown {
     required this.activeCount,
     required this.distractedCount,
     required this.sleepingCount,
+    required this.talkingCount,
     required this.phoneCount,
     required this.totalActivity,
     required this.markedCount,
@@ -1927,6 +1869,7 @@ class _SessionStudentBreakdown {
   final int activeCount;
   final int distractedCount;
   final int sleepingCount;
+  final int talkingCount;
   final int phoneCount;
   final int totalActivity;
   final int markedCount;
