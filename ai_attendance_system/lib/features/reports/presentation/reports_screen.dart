@@ -235,8 +235,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                         ),
                                   ),
                                   Text(
-                                    _readValue(session, const ['date', 'session_date', 'created_at'],
-                                        fallback: 'Recent'),
+                                    _resolveSessionDateLabel(session, fallback: 'Recent'),
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall
@@ -406,6 +405,89 @@ List<Map<String, dynamic>> _extractList(dynamic response, List<String> keys) {
     }
   }
   return const [];
+}
+
+String _resolveSessionDateLabel(Map<String, dynamic> item, {String fallback = ''}) {
+  for (final key in const [
+    'date',
+    'session_date',
+    'created_at',
+    'createdAt',
+    'start_date',
+    'started_at',
+    'timestamp',
+    'created',
+  ]) {
+    final parsed = _parseSessionDateValue(item[key]);
+    if (parsed != null) {
+      return _formatSessionDate(parsed);
+    }
+  }
+
+  for (final nestedKey in const ['session', 'data']) {
+    final nested = item[nestedKey];
+    if (nested is Map) {
+      final resolved = _resolveSessionDateLabel(Map<String, dynamic>.from(nested), fallback: fallback);
+      if (resolved.isNotEmpty) {
+        return resolved;
+      }
+    }
+  }
+
+  return fallback;
+}
+
+DateTime? _parseSessionDateValue(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is int) {
+    if (value.abs() > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(value * 1000);
+  }
+  if (value is double) {
+    final millis = value.toInt();
+    if (millis.abs() > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(millis);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(millis * 1000);
+  }
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+
+  final numeric = int.tryParse(text);
+  if (numeric != null) {
+    if (numeric.abs() > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(numeric);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(numeric * 1000);
+  }
+
+  if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(text)) {
+    final parts = text.split('-');
+    return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+  }
+
+  return DateTime.tryParse(text.replaceFirst(' ', 'T'));
+}
+
+String _formatSessionDate(DateTime date) {
+  const monthNames = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${date.day} ${monthNames[date.month - 1]} ${date.year}';
 }
 
 String _readValue(

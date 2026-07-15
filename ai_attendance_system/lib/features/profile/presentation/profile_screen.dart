@@ -1236,7 +1236,22 @@ List<Map<String, dynamic>> _applyDateFilter(
 
 DateTime? _tryParseSessionDate(String value) {
   if (value.isEmpty) return null;
-  return DateTime.tryParse(value.replaceFirst(' ', 'T'));
+  final trimmed = value.trim();
+
+  final numeric = int.tryParse(trimmed);
+  if (numeric != null) {
+    if (numeric.abs() > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(numeric);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(numeric * 1000);
+  }
+
+  if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(trimmed)) {
+    final parts = trimmed.split('-');
+    return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+  }
+
+  return DateTime.tryParse(trimmed.replaceFirst(' ', 'T'));
 }
 
 String _resolveSessionDateLabel(Map<String, dynamic> session) {
@@ -1248,6 +1263,7 @@ String _resolveSessionDateLabel(Map<String, dynamic> session) {
     'start_date',
     'started_at',
     'timestamp',
+    'created',
   ]);
   final parsed = _tryParseSessionDate(direct);
   if (parsed != null) {
@@ -1260,7 +1276,7 @@ String _resolveSessionDateLabel(Map<String, dynamic> session) {
     return _formatDate(parsedTime);
   }
 
-  return _formatDate(DateTime.now());
+  return '';
 }
 
 String _classFilterLabel(Map<String, dynamic> item) {
