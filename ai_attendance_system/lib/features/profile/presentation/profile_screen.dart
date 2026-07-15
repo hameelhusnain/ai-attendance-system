@@ -20,14 +20,11 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _filtersLoading = true;
   bool _historyLoading = true;
   String? _expandedHistorySessionId;
   String? _preferredReportSessionId;
   DateTimeRange? _selectedDateRange;
-  Map<String, dynamic>? _selectedReportClass;
 
-  List<Map<String, dynamic>> _availableClasses = const [];
   List<_SessionHistoryView> _historyCards = const [];
   List<_ReportStudent> _breakdown = const [];
 
@@ -44,15 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _initializeReport() async {
     _preferredReportSessionId = await SessionStore.consumeReportSessionId();
-    _selectedReportClass = SessionStore.selectedClass == null
-        ? null
-        : Map<String, dynamic>.from(SessionStore.selectedClass!);
-    await _loadAvailableClasses();
     await _loadReportData();
   }
 
-  Map<String, dynamic> get _selectedClass =>
-      _selectedReportClass ?? SessionStore.selectedClass ?? const {};
+  Map<String, dynamic> get _selectedClass => SessionStore.selectedClass ?? const {};
 
   String get _selectedClassId =>
       _stringValue(_selectedClass, ['id', 'class_id', 'classId']);
@@ -140,37 +132,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     query['to_date'] = to;
     query['end_date'] = to;
     return query;
-  }
-
-  Future<void> _loadAvailableClasses() async {
-    final response = await _safeCall(() => ApiService().getClasses());
-    final classes = _extractResponseList(response, const [
-      'classes',
-      'items',
-      'data',
-    ]);
-    final selectedTeacherId = _stringValue(SessionStore.selectedClass, [
-      'teacher_id',
-      'teacherId',
-      'tutor_id',
-    ]);
-    final filtered = classes.where((item) {
-      if (selectedTeacherId.isEmpty) {
-        return true;
-      }
-      final classTeacherId = _stringValue(item, [
-        'teacher_id',
-        'teacherId',
-        'tutor_id',
-      ]);
-      return classTeacherId.isEmpty || classTeacherId == selectedTeacherId;
-    }).toList();
-
-    if (!mounted) return;
-    setState(() {
-      _availableClasses = filtered.isNotEmpty ? filtered : classes;
-      _filtersLoading = false;
-    });
   }
 
   Future<void> _loadReportData() async {
@@ -1002,9 +963,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _clearFilters() async {
     setState(() {
       _selectedDateRange = null;
-      _selectedReportClass = SessionStore.selectedClass == null
-          ? null
-          : Map<String, dynamic>.from(SessionStore.selectedClass!);
     });
     await _loadReportData();
   }
@@ -1020,72 +978,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Filters',
+            'Date filter',
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           AppSpacing.gap12,
-          if (_filtersLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            )
-          else ...[
-            DropdownButtonFormField<String>(
-              initialValue: _selectedClassId.isEmpty ? null : _selectedClassId,
-              decoration: const InputDecoration(
-                labelText: 'Subject / Class',
-                prefixIcon: Icon(Icons.class_outlined),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickDateRange,
+                  icon: const Icon(Icons.date_range_outlined),
+                  label: Text(rangeLabel, overflow: TextOverflow.ellipsis),
+                ),
               ),
-              items: _availableClasses.map((item) {
-                final id = _stringValue(item, ['id', 'class_id', 'classId']);
-                final label = _classFilterLabel(item);
-                return DropdownMenuItem<String>(
-                  value: id.isEmpty ? label : id,
-                  child: Text(label, overflow: TextOverflow.ellipsis),
-                );
-              }).toList(),
-              onChanged: (value) async {
-                if (value == null) return;
-                final match = _availableClasses.firstWhere((item) {
-                  final id = _stringValue(item, ['id', 'class_id', 'classId']);
-                  final label = _classFilterLabel(item);
-                  return (id.isEmpty ? label : id) == value;
-                }, orElse: () => _selectedClass);
-                setState(() {
-                  _selectedReportClass = Map<String, dynamic>.from(match);
-                });
-                await _loadReportData();
-              },
-            ),
-            AppSpacing.gap12,
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDateRange,
-                    icon: const Icon(Icons.date_range_outlined),
-                    label: Text(rangeLabel, overflow: TextOverflow.ellipsis),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                TextButton(
-                  onPressed:
-                      (_selectedDateRange == null &&
-                          _selectedClassId ==
-                              _stringValue(SessionStore.selectedClass, [
-                                'id',
-                                'class_id',
-                                'classId',
-                              ]))
-                      ? null
-                      : _clearFilters,
-                  child: const Text('Reset'),
-                ),
-              ],
-            ),
-          ],
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: _selectedDateRange == null ? null : _clearFilters,
+                child: const Text('Reset'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1277,17 +1191,6 @@ String _resolveSessionDateLabel(Map<String, dynamic> session) {
   }
 
   return '';
-}
-
-String _classFilterLabel(Map<String, dynamic> item) {
-  final name = _stringValue(item, ['name', 'class_name', 'title'], 'Class');
-  final section = _joinNonEmpty([
-    _stringValue(item, ['code', 'section']),
-    _stringValue(item, ['group']),
-    _stringValue(item, ['semester']),
-    _stringValue(item, ['batch']),
-  ], separator: ' • ');
-  return section.isEmpty ? name : '$name • $section';
 }
 
 List<Map<String, dynamic>> _extractResponseList(
