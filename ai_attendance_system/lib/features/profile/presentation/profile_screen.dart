@@ -55,37 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'title',
   ], 'Selected Class');
 
-  String get _selectedClassCode {
-    final code = _joinNonEmpty([
-      _stringValue(_selectedClass, ['code', 'section']),
-      _stringValue(_selectedClass, ['group']),
-    ]);
-    if (code.isNotEmpty) return code;
-    final fallback = _joinNonEmpty([
-      _stringValue(_selectedClass, ['semester']),
-      _stringValue(_selectedClass, ['batch']),
-    ]);
-    return fallback;
-  }
-
-  int get _thisSessionPresent {
-    if (_breakdown.isNotEmpty) {
-      return _breakdown.where((student) => student.present).length;
-    }
-    if (_historyCards.isNotEmpty) return _historyCards.first.present;
-    return 0;
-  }
-
-  int get _thisSessionAbsent {
-    if (_breakdown.isNotEmpty) {
-      return _breakdown.where((student) => !student.present).length;
-    }
-    if (_historyCards.isNotEmpty) return _historyCards.first.absent;
-    return 0;
-  }
-
-  bool get _canExportReport =>
-      _historyCards.isNotEmpty || _breakdown.isNotEmpty;
+  bool get _canExportReport => _historyCards.isNotEmpty || _breakdown.isNotEmpty;
 
   Map<String, dynamic> _classQueryParameters() {
     final selectedClass = _selectedClass;
@@ -755,71 +725,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _exportReportCsv() async {
     final rows = <List<String>>[
-      ['Class', _selectedClassName],
-      ['Code', _selectedClassCode],
-      ['Present', _thisSessionPresent.toString()],
-      ['Absent', _thisSessionAbsent.toString()],
-      [],
-      ['Session', 'Date', 'Time', 'Present', 'Absent', 'Attendance %'],
-      ..._historyCards.map(
-        (item) => [
-          item.title,
-          item.dateLabel,
-          item.timeLabel,
-          item.present.toString(),
-          item.absent.toString(),
-          item.percentage.toStringAsFixed(1),
-        ],
-      ),
-      [],
       [
-        'Student',
-        'Identifier',
-        'Status',
-        'Present',
-        'Confidence %',
-        'Current Engagement',
-        'Engaged Count',
-        'Distracted Count',
-        'Sleeping Count',
-        'Phone Count',
-        'Engaged %',
-        'Distracted %',
+        'Date',
+        'Student ID',
+        'Student Name',
+        'Present/Absent',
+        'Active %',
         'Sleeping %',
-        'Phone %',
+        'Talking %',
+        'Engagement %',
       ],
-      ..._breakdown.map((student) {
-        final totalBehavior = _behaviorTotal(student);
-        return [
-          student.name,
-          student.subtitle,
-          student.status,
-          student.present ? 'Yes' : 'No',
-          (student.confidence * 100).toStringAsFixed(1),
-          student.engagement,
-          student.engagedCount.toString(),
-          student.distractedCount.toString(),
-          student.sleepingCount.toString(),
-          student.phoneCount.toString(),
-          _behaviorPercent(
-            student.engagedCount,
-            totalBehavior,
-          ).toStringAsFixed(1),
-          _behaviorPercent(
-            student.distractedCount,
-            totalBehavior,
-          ).toStringAsFixed(1),
-          _behaviorPercent(
-            student.sleepingCount,
-            totalBehavior,
-          ).toStringAsFixed(1),
-          _behaviorPercent(
-            student.phoneCount,
-            totalBehavior,
-          ).toStringAsFixed(1),
-        ];
-      }),
     ];
+
+    final orderedCards = [..._historyCards]
+      ..sort((a, b) {
+        final aDate = _parseExportDate(a.dateLabel);
+        final bDate = _parseExportDate(b.dateLabel);
+        final dateComparison = (aDate ?? DateTime(0)).compareTo(
+          bDate ?? DateTime(0),
+        );
+        if (dateComparison != 0) {
+          return dateComparison;
+        }
+        return a.title.compareTo(b.title);
+      });
+
+    for (final card in orderedCards) {
+      final sortedStudents = [...card.students]
+        ..sort((a, b) {
+          final nameComparison = a.name.compareTo(b.name);
+          if (nameComparison != 0) {
+            return nameComparison;
+          }
+          return a.id.compareTo(b.id);
+        });
+
+      for (final student in sortedStudents) {
+        final totalBehavior = _behaviorTotal(student);
+        final activePercent = _percentValue(student.engagedCount, totalBehavior);
+        final sleepingPercent = _percentValue(student.sleepingCount, totalBehavior);
+        final talkingPercent = _percentValue(student.talkingCount, totalBehavior);
+        final engagementPercent = _percentValue(
+          student.confidence > 0 ? (student.confidence * 100).round() : 0,
+          100,
+        );
+
+        rows.add([
+          _exportDateLabel(card.dateLabel),
+          student.id.isNotEmpty ? student.id : student.subtitle,
+          student.name,
+          student.present ? 'Present' : 'Absent',
+          '${activePercent.toStringAsFixed(1)}%',
+          '${sleepingPercent.toStringAsFixed(1)}%',
+          '${talkingPercent.toStringAsFixed(1)}%',
+          '${engagementPercent.toStringAsFixed(1)}%',
+        ]);
+      }
+    }
+
     await _shareCsv(
       fileName: '${_safeFileName(_selectedClassName)}_class_report.csv',
       rows: rows,
@@ -895,6 +858,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'sleeping_count',
         'sleeping',
       ], fallback: 0),
+      talkingCount: _intValue(item, [
+        'talking_count',
+        'talking',
+        'speaking_count',
+        'speaking',
+      ], fallback: 0),
       phoneCount: _intValue(item, ['phone_count', 'phone'], fallback: 0),
     );
   }
@@ -924,22 +893,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       engagedCount: 0,
       distractedCount: 0,
       sleepingCount: 0,
+      talkingCount: 0,
       phoneCount: 0,
     );
-  }
-
-  int _behaviorTotal(_ReportStudent student) {
-    return student.engagedCount +
-        student.distractedCount +
-        student.sleepingCount +
-        student.phoneCount;
-  }
-
-  double _behaviorPercent(int count, int total) {
-    if (total <= 0) {
-      return 0;
-    }
-    return (count / total) * 100;
   }
 
   Future<void> _pickDateRange() async {
@@ -1083,6 +1039,7 @@ class _ReportStudent {
     required this.engagedCount,
     required this.distractedCount,
     required this.sleepingCount,
+    required this.talkingCount,
     required this.phoneCount,
   });
 
@@ -1097,6 +1054,7 @@ class _ReportStudent {
   final int engagedCount;
   final int distractedCount;
   final int sleepingCount;
+  final int talkingCount;
   final int phoneCount;
 
   String get initials => _initials(name);
@@ -1308,6 +1266,48 @@ String _safeFileName(String value) {
       .replaceAll(RegExp(r'_+'), '_')
       .replaceAll(RegExp(r'^_|_$'), '');
   return sanitized.isEmpty ? 'report' : sanitized.toLowerCase();
+}
+
+double _percentValue(int count, int total) {
+  if (total <= 0) {
+    return 0;
+  }
+  return (count / total) * 100;
+}
+
+int _behaviorTotal(_ReportStudent student) {
+  return student.engagedCount +
+      student.distractedCount +
+      student.sleepingCount +
+      student.talkingCount +
+      student.phoneCount;
+}
+
+String _exportDateLabel(String value) {
+  final parsed = _parseExportDate(value);
+  if (parsed == null) {
+    return value;
+  }
+  return '${parsed.day.toString().padLeft(2, '0')}-${parsed.month.toString().padLeft(2, '0')}-${parsed.year}';
+}
+
+DateTime? _parseExportDate(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+
+  final parsed = DateTime.tryParse(trimmed.replaceFirst(' ', 'T'));
+  if (parsed != null) return parsed;
+
+  if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(trimmed)) {
+    final parts = trimmed.split('-');
+    return DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+  }
+
+  return null;
 }
 
 String _csvCell(String value) {
