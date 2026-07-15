@@ -136,6 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'class_id',
       'classId',
     ]);
+    final latestSessionId = _mostRecentSessionId(filteredSessions);
     final selectedReportSessionId =
         _preferredReportSessionId != null &&
             _preferredReportSessionId!.isNotEmpty
@@ -145,9 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               activeClassId.isNotEmpty &&
               activeClassId == _selectedClassId
         ? activeSessionId
-        : resolvedSessions.isNotEmpty
-        ? _stringValue(resolvedSessions.first, ['id', 'session_id'])
-        : null;
+        : latestSessionId;
     final historyCards = await _buildHistoryCards(
       filteredSessions,
       classStudents: classStudents,
@@ -188,21 +187,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? prioritizedSessionId,
   }) async {
     final cards = <_SessionHistoryView>[];
-    final orderedSessions = [...sessions];
-
-    if (prioritizedSessionId != null && prioritizedSessionId.isNotEmpty) {
-      orderedSessions.sort((a, b) {
-        final aId = _stringValue(a, ['id', 'session_id']);
-        final bId = _stringValue(b, ['id', 'session_id']);
-        if (aId == prioritizedSessionId && bId != prioritizedSessionId) {
+    final orderedSessions = [...sessions]
+      ..sort((a, b) {
+        final aDate = _sessionSortDate(a);
+        final bDate = _sessionSortDate(b);
+        if (aDate != null && bDate != null) {
+          final comparison = bDate.compareTo(aDate);
+          if (comparison != 0) {
+            return comparison;
+          }
+        } else if (aDate != null) {
           return -1;
-        }
-        if (aId != prioritizedSessionId && bId == prioritizedSessionId) {
+        } else if (bDate != null) {
           return 1;
         }
-        return 0;
+
+        final aTime = _sessionSortTime(a);
+        final bTime = _sessionSortTime(b);
+        if (aTime != null && bTime != null) {
+          final timeComparison = bTime.compareTo(aTime);
+          if (timeComparison != 0) {
+            return timeComparison;
+          }
+        }
+
+        final aId = _stringValue(a, ['id', 'session_id']);
+        final bId = _stringValue(b, ['id', 'session_id']);
+        if (prioritizedSessionId != null && prioritizedSessionId.isNotEmpty) {
+          if (aId == prioritizedSessionId && bId != prioritizedSessionId) {
+            return -1;
+          }
+          if (aId != prioritizedSessionId && bId == prioritizedSessionId) {
+            return 1;
+          }
+        }
+        return bId.compareTo(aId);
       });
-    }
 
     for (final session in orderedSessions.take(6)) {
       final sessionId = _stringValue(session, ['id', 'session_id']);
@@ -1266,6 +1286,66 @@ String _safeFileName(String value) {
       .replaceAll(RegExp(r'_+'), '_')
       .replaceAll(RegExp(r'^_|_$'), '');
   return sanitized.isEmpty ? 'report' : sanitized.toLowerCase();
+}
+
+String? _mostRecentSessionId(List<Map<String, dynamic>> sessions) {
+  if (sessions.isEmpty) {
+    return null;
+  }
+
+  final sorted = [...sessions]
+    ..sort((a, b) {
+      final aDate = _sessionSortDate(a);
+      final bDate = _sessionSortDate(b);
+      if (aDate != null && bDate != null) {
+        final comparison = bDate.compareTo(aDate);
+        if (comparison != 0) {
+          return comparison;
+        }
+      } else if (aDate != null) {
+        return -1;
+      } else if (bDate != null) {
+        return 1;
+      }
+
+      final aTime = _sessionSortTime(a);
+      final bTime = _sessionSortTime(b);
+      if (aTime != null && bTime != null) {
+        final timeComparison = bTime.compareTo(aTime);
+        if (timeComparison != 0) {
+          return timeComparison;
+        }
+      }
+
+      final aId = _stringValue(a, ['id', 'session_id']);
+      final bId = _stringValue(b, ['id', 'session_id']);
+      return bId.compareTo(aId);
+    });
+
+  return _stringValue(sorted.first, ['id', 'session_id']);
+}
+
+DateTime? _sessionSortDate(Map<String, dynamic> session) {
+  return _tryParseSessionDate(
+    _stringValue(session, [
+      'date',
+      'session_date',
+      'created_at',
+      'createdAt',
+      'start_date',
+      'started_at',
+      'timestamp',
+      'created',
+    ]),
+  );
+}
+
+String? _sessionSortTime(Map<String, dynamic> session) {
+  final direct = _stringValue(session, ['time', 'start_time', 'end_time']);
+  if (direct.isEmpty) {
+    return null;
+  }
+  return direct;
 }
 
 double _percentValue(int count, int total) {
