@@ -152,6 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       classStudents: classStudents,
       fallbackStudentCount: classStudents.length,
       prioritizedSessionId: selectedReportSessionId,
+      dateRange: _selectedDateRange,
     );
 
     if (!mounted) return;
@@ -185,6 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required List<Map<String, dynamic>> classStudents,
     required int fallbackStudentCount,
     String? prioritizedSessionId,
+    DateTimeRange? dateRange,
   }) async {
     final cards = <_SessionHistoryView>[];
     final orderedSessions = [...sessions]
@@ -224,7 +226,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return bId.compareTo(aId);
       });
 
-    for (final session in orderedSessions.take(6)) {
+    final sessionsToProcess = dateRange == null ? orderedSessions.take(6) : orderedSessions;
+
+    for (final session in sessionsToProcess) {
       final sessionId = _stringValue(session, ['id', 'session_id']);
       Map<String, dynamic> report = const {};
       List<Map<String, dynamic>> reportRecords = [];
